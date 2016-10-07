@@ -18,6 +18,7 @@
 package org.apache.drill.exec.store.parquet;
 
 import java.io.IOException;
+import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -25,6 +26,11 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
+import org.apache.drill.exec.ExecConstants;
+import org.apache.drill.exec.ops.OperatorContext;
+import org.apache.drill.exec.planner.fragment.DistributionAffinity;
+import org.apache.drill.exec.server.options.OptionList;
 
 import org.apache.drill.common.exceptions.ExecutionSetupException;
 import org.apache.drill.common.exceptions.UserException;
@@ -115,6 +121,9 @@ public class ParquetGroupScan extends AbstractFileGroupScan {
   private List<RowGroupInfo> rowGroupInfos;
   private Metadata.ParquetTableMetadataBase parquetTableMetadata = null;
   private String cacheFileRoot = null;
+
+  private Map<DrillbitEndpoint, Integer> numEndpointAssignments;
+  private Map<DrillbitEndpoint, Long> numAssignedBytes;
 
   /*
    * total number of rows (obtained from parquet footer)
@@ -213,6 +222,8 @@ public class ParquetGroupScan extends AbstractFileGroupScan {
     this.usedMetadataCache = that.usedMetadataCache;
     this.parquetTableMetadata = that.parquetTableMetadata;
     this.cacheFileRoot = that.cacheFileRoot;
+    this.numAssignedBytes = that.numAssignedBytes == null ? null : new HashMap<>(that.numAssignedBytes);
+    this.numEndpointAssignments = that.numEndpointAssignments == null ? null : new HashMap<>(that.numEndpointAssignments);
   }
 
   /**
@@ -521,6 +532,7 @@ public class ParquetGroupScan extends AbstractFileGroupScan {
     private int rowGroupIndex;
     private String root;
     private long rowCount;  // rowCount = -1 indicates to include all rows.
+    private DrillbitEndpoint preferredEndpoint;
 
     @JsonCreator
     public RowGroupInfo(@JsonProperty("path") String path, @JsonProperty("start") long start,
@@ -722,6 +734,53 @@ public class ParquetGroupScan extends AbstractFileGroupScan {
 
     this.endpointAffinities = AffinityCreator.getAffinityMap(rowGroupInfos);
 
+    numEndpointAssignments = Maps.newHashMap();
+    numAssignedBytes = Maps.newHashMap();
+
+    for (RowGroupInfo rowGroupInfo : rowGroupInfos) {
+      EndpointByteMap endpointByteMap = rowGroupInfo.getByteMap();
+
+      if (endpointByteMap.isEmpty()) {
+        continue;
+      }
+
+      List<DrillbitEndpoint> topEndpoints = endpointByteMap.getTopEndpoints();
+
+      long minBytes = 0, numBytes = 0;
+      DrillbitEndpoint nodePicked = null;
+
+      for (DrillbitEndpoint endpoint : topEndpoints) {
+        if (nodePicked == null) {
+          nodePicked = endpoint;
+          if (numAssignedBytes.containsKey(nodePicked)) {
+            minBytes = numAssignedBytes.get(nodePicked);
+          }
+        }
+
+        if (numAssignedBytes.containsKey(endpoint)) {
+          numBytes = numAssignedBytes.get(endpoint);
+        } else {
+          numBytes = 0;
+        }
+
+        if (numBytes < minBytes) {
+          nodePicked = endpoint;
+          minBytes = numBytes;
+        }
+      }
+
+      rowGroupInfo.preferredEndpoint = nodePicked;
+
+      if (nodePicked != null) {
+        numAssignedBytes.put(nodePicked, endpointByteMap.get(nodePicked) + minBytes);
+        if (numEndpointAssignments.containsKey(nodePicked)) {
+          numEndpointAssignments.put(nodePicked, numEndpointAssignments.get(nodePicked) + 1);
+        } else {
+          numEndpointAssignments.put(nodePicked, 1);
+        }
+      }
+    }
+
     columnValueCounts = Maps.newHashMap();
     this.rowCount = 0;
     boolean first = true;
@@ -805,6 +864,20 @@ public class ParquetGroupScan extends AbstractFileGroupScan {
       }
     } else {
       fileStatuses.add(fileStatus);
+    }
+  }
+
+  @Override
+  public Map<DrillbitEndpoint, Integer> getNumEndpointAssignments() {
+    return this.numEndpointAssignments;
+  }
+
+  @Override
+  public DistributionAffinity getDistributionAffinity(OptionList options) {
+    if (this.formatPlugin.getContext().getOptionManager().getOption(ExecConstants.PARQUET_LOCAL_AFFINITY).bool_val) {
+      return DistributionAffinity.LOCAL;
+    } else {
+      return DistributionAffinity.SOFT;
     }
   }
 

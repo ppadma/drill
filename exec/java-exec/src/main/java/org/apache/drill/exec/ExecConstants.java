@@ -132,7 +132,8 @@ public interface ExecConstants {
   OptionValidator PARQUET_VECTOR_FILL_CHECK_THRESHOLD_VALIDATOR = new PositiveLongValidator(PARQUET_VECTOR_FILL_CHECK_THRESHOLD, 100l, 10l);
   String PARQUET_NEW_RECORD_READER = "store.parquet.use_new_reader";
   OptionValidator PARQUET_RECORD_READER_IMPLEMENTATION_VALIDATOR = new BooleanValidator(PARQUET_NEW_RECORD_READER, false);
-
+  String PARQUET_LOCAL_AFFINITY = "store.parquet.use_local_affinity";
+  OptionValidator PARQUET_LOCAL_AFFINITY_IMPLEMENTATION_VALIDATOR = new BooleanValidator(PARQUET_LOCAL_AFFINITY, false);
   OptionValidator COMPILE_SCALAR_REPLACEMENT = new BooleanValidator("exec.compile.scalar_replacement", false);
 
   String JSON_ALL_TEXT_MODE = "store.json.all_text_mode";

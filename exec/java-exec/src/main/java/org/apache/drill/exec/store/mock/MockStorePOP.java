@@ -19,6 +19,8 @@ package org.apache.drill.exec.store.mock;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.HashMap;
 
 import org.apache.drill.exec.physical.EndpointAffinity;
 import org.apache.drill.exec.physical.base.AbstractStore;
@@ -51,6 +53,11 @@ public class MockStorePOP extends AbstractStore {
   @Override
   public void applyAssignments(List<DrillbitEndpoint> endpoints) {
 
+  }
+
+  @Override
+  public  Map<DrillbitEndpoint, Integer> getNumEndpointAssignments() {
+    return new HashMap<>();
   }
 
   @Override

@@ -31,6 +31,8 @@ import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.RelTraitSet;
 
+import org.apache.drill.exec.server.options.OptionList;
+
 public class ScreenPrel extends DrillScreenRelBase implements Prel, HasDistributionAffinity {
 
   static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(ScreenPrel.class);
@@ -82,6 +84,11 @@ public class ScreenPrel extends DrillScreenRelBase implements Prel, HasDistribut
 
   @Override
   public DistributionAffinity getDistributionAffinity() {
+    return DistributionAffinity.HARD;
+  }
+
+  @Override
+  public DistributionAffinity getDistributionAffinity(OptionList options) {
     return DistributionAffinity.HARD;
   }
 }

@@ -19,6 +19,7 @@ package org.apache.drill.exec.physical.base;
 
 
 import org.apache.drill.exec.planner.fragment.DistributionAffinity;
+import org.apache.drill.exec.server.options.OptionList;
 
 public abstract class AbstractStore extends AbstractSingle implements Store, Root{
   static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(AbstractStore.class);
@@ -36,5 +37,10 @@ public abstract class AbstractStore extends AbstractSingle implements Store, Roo
   @Override
   public DistributionAffinity getDistributionAffinity() {
     return DistributionAffinity.SOFT;
+  }
+
+  @Override
+  public DistributionAffinity getDistributionAffinity(OptionList options) {
+        return getDistributionAffinity();
   }
 }

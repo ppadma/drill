@@ -21,6 +21,7 @@ import java.util.Iterator;
 import java.util.Map;
 
 import org.apache.drill.exec.proto.CoordinationProtos.DrillbitEndpoint;
+import org.apache.drill.exec.server.options.OptionList;
 
 import com.google.common.collect.Maps;
 
@@ -29,6 +30,12 @@ public class PlanningSet implements Iterable<Wrapper> {
 
   private final Map<Fragment, Wrapper> fragmentMap = Maps.newHashMap();
   private int majorFragmentIdIndex = 0;
+
+  public Wrapper get(Fragment node, OptionList options) {
+    Wrapper wrapper = get(node);
+    wrapper.setOptions(options);
+    return wrapper;
+  }
 
   public Wrapper get(Fragment node) {
     Wrapper wrapper = fragmentMap.get(node);
