@@ -59,7 +59,7 @@ public abstract class MapRDBGroupScan extends AbstractGroupScan {
 
   protected Map<Integer, List<MapRDBSubScanSpec>> endpointFragmentMapping;
 
-  protected NavigableMap<TabletFragmentInfo, String> regionsToScan;
+  protected NavigableMap<TabletFragmentInfo, String> doNotAccessRegionsToScan;
 
   private boolean filterPushedDown = false;
 
@@ -80,7 +80,7 @@ public abstract class MapRDBGroupScan extends AbstractGroupScan {
     this.formatPlugin = that.formatPlugin;
     this.formatPluginConfig = that.formatPluginConfig;
     this.storagePlugin = that.storagePlugin;
-    this.regionsToScan = that.regionsToScan;
+    this.setRegionsToScan(that.getRegionsToScan());
     this.filterPushedDown = that.filterPushedDown;
   }
 
@@ -102,8 +102,8 @@ public abstract class MapRDBGroupScan extends AbstractGroupScan {
       endpointMap.put(ep.getAddress(), ep);
     }
 
-    Map<DrillbitEndpoint, EndpointAffinity> affinityMap = new HashMap<DrillbitEndpoint, EndpointAffinity>();
-    for (String serverName : regionsToScan.values()) {
+    final Map<DrillbitEndpoint, EndpointAffinity> affinityMap = new HashMap<DrillbitEndpoint, EndpointAffinity>();
+    for (String serverName : getRegionsToScan().values()) {
       DrillbitEndpoint ep = endpointMap.get(serverName);
       if (ep != null) {
         EndpointAffinity affinity = affinityMap.get(ep);
@@ -119,7 +119,6 @@ public abstract class MapRDBGroupScan extends AbstractGroupScan {
   }
 
   /**
-   *
    * @param incomingEndpoints
    */
   @Override
@@ -128,14 +127,16 @@ public abstract class MapRDBGroupScan extends AbstractGroupScan {
     watch.start();
 
     final int numSlots = incomingEndpoints.size();
+    final NavigableMap<TabletFragmentInfo, String> regionsToScan = getRegionsToScan();
+
     Preconditions.checkArgument(numSlots <= regionsToScan.size(),
         String.format("Incoming endpoints %d is greater than number of scan regions %d", numSlots, regionsToScan.size()));
 
     /*
      * Minimum/Maximum number of assignment per slot
      */
-    final int minPerEndpointSlot = (int) Math.floor((double)regionsToScan.size() / numSlots);
-    final int maxPerEndpointSlot = (int) Math.ceil((double)regionsToScan.size() / numSlots);
+    final int minPerEndpointSlot = (int) Math.floor((double) regionsToScan.size() / numSlots);
+    final int maxPerEndpointSlot = (int) Math.ceil((double) regionsToScan.size() / numSlots);
 
     /*
      * initialize (endpoint index => HBaseSubScanSpec list) map
@@ -188,10 +189,10 @@ public abstract class MapRDBGroupScan extends AbstractGroupScan {
      */
     PriorityQueue<List<MapRDBSubScanSpec>> minHeap = new PriorityQueue<List<MapRDBSubScanSpec>>(numSlots, LIST_SIZE_COMPARATOR);
     PriorityQueue<List<MapRDBSubScanSpec>> maxHeap = new PriorityQueue<List<MapRDBSubScanSpec>>(numSlots, LIST_SIZE_COMPARATOR_REV);
-    for(List<MapRDBSubScanSpec> listOfScan : endpointFragmentMapping.values()) {
+    for (List<MapRDBSubScanSpec> listOfScan : endpointFragmentMapping.values()) {
       if (listOfScan.size() <= minPerEndpointSlot) {
         minHeap.offer(listOfScan);
-      } else if (listOfScan.size() > minPerEndpointSlot){
+      } else if (listOfScan.size() > minPerEndpointSlot) {
         maxHeap.offer(listOfScan);
       }
     }
@@ -212,10 +213,10 @@ public abstract class MapRDBGroupScan extends AbstractGroupScan {
     /*
      * While there are slots with lesser than 'minPerEndpointSlot' unit work, balance from those with more.
      */
-    while(minHeap.peek() != null && minHeap.peek().size() < minPerEndpointSlot) {
+    while (minHeap.peek() != null && minHeap.peek().size() < minPerEndpointSlot) {
       List<MapRDBSubScanSpec> smallestList = (List<MapRDBSubScanSpec>) minHeap.poll();
       List<MapRDBSubScanSpec> largestList = (List<MapRDBSubScanSpec>) maxHeap.poll();
-      smallestList.add(largestList.remove(largestList.size()-1));
+      smallestList.add(largestList.remove(largestList.size() - 1));
       if (largestList.size() > minPerEndpointSlot) {
         maxHeap.offer(largestList);
       }
@@ -230,12 +231,12 @@ public abstract class MapRDBGroupScan extends AbstractGroupScan {
         incomingEndpoints, endpointFragmentMapping.toString());
 
     logger.debug("Built assignment map in {} µs.\nEndpoints: {}.\nAssignment Map: {}",
-        watch.elapsed(TimeUnit.NANOSECONDS)/1000, incomingEndpoints, endpointFragmentMapping.toString());
+        watch.elapsed(TimeUnit.NANOSECONDS) / 1000, incomingEndpoints, endpointFragmentMapping.toString());
   }
 
   @Override
   public int getMaxParallelizationWidth() {
-    return regionsToScan.size();
+    return getRegionsToScan().size();
   }
 
   @JsonIgnore
@@ -254,7 +255,7 @@ public abstract class MapRDBGroupScan extends AbstractGroupScan {
   }
 
   @JsonIgnore
-  public FileSystemPlugin getStoragePlugin(){
+  public FileSystemPlugin getStoragePlugin() {
     return storagePlugin;
   }
 
@@ -279,5 +280,13 @@ public abstract class MapRDBGroupScan extends AbstractGroupScan {
   }
 
   protected abstract MapRDBSubScanSpec getSubScanSpec(TabletFragmentInfo key);
+
+  protected NavigableMap<TabletFragmentInfo, String> getRegionsToScan() {
+       return doNotAccessRegionsToScan;
+  }
+
+  protected void setRegionsToScan(NavigableMap<TabletFragmentInfo, String> regionsToScan) {
+        this.doNotAccessRegionsToScan = regionsToScan;
+  }
 
 }

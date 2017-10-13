@@ -21,6 +21,7 @@ import static org.apache.drill.exec.store.mapr.db.util.CommonFns.isNullOrEmpty;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.NavigableMap;
 import java.util.TreeMap;
 
 import org.apache.drill.common.exceptions.DrillRuntimeException;
@@ -115,48 +116,51 @@ public class JsonTableGroupScan extends MapRDBGroupScan {
   public JsonTableGroupScan clone(JsonScanSpec scanSpec) {
     JsonTableGroupScan newScan = new JsonTableGroupScan(this);
     newScan.scanSpec = scanSpec;
-    newScan.computeRegionsToScan();
     return newScan;
   }
 
   /**
    * Compute regions to scan based on the scanSpec
    */
-  private void computeRegionsToScan() {
+  @Override
+  protected NavigableMap<TabletFragmentInfo, String> getRegionsToScan() {
     boolean foundStartRegion = false;
 
-    regionsToScan = new TreeMap<TabletFragmentInfo, String>();
-    for (TabletInfo tabletInfo : tabletInfos) {
-      TabletInfoImpl tabletInfoImpl = (TabletInfoImpl) tabletInfo;
-      if (!foundStartRegion && !isNullOrEmpty(scanSpec.getStartRow()) && !tabletInfoImpl.containsRow(scanSpec.getStartRow())) {
-        continue;
+    if (doNotAccessRegionsToScan == null) {
+      final TreeMap<TabletFragmentInfo, String> regionsToScan = new TreeMap<TabletFragmentInfo, String>();
+
+      for (TabletInfo tabletInfo : tabletInfos) {
+        TabletInfoImpl tabletInfoImpl = (TabletInfoImpl) tabletInfo;
+        if (!foundStartRegion && !isNullOrEmpty(scanSpec.getStartRow()) && !tabletInfoImpl.containsRow(scanSpec.getStartRow())) {
+          continue;
+        }
+        foundStartRegion = true;
+        regionsToScan.put(new TabletFragmentInfo(tabletInfoImpl), tabletInfo.getLocations()[0]);
+        if (!isNullOrEmpty(scanSpec.getStopRow()) && tabletInfoImpl.containsRow(scanSpec.getStopRow())) {
+          break;
+        }
       }
-      foundStartRegion = true;
-      regionsToScan.put(new TabletFragmentInfo(tabletInfoImpl), tabletInfo.getLocations()[0]);
-      if (!isNullOrEmpty(scanSpec.getStopRow()) && tabletInfoImpl.containsRow(scanSpec.getStopRow())) {
-        break;
-      }
+      setRegionsToScan(regionsToScan);
     }
+
+    return doNotAccessRegionsToScan;
   }
 
   private void init() {
     logger.debug("Getting tablet locations");
     try {
-      Configuration conf = new Configuration();
+      if (totalRowCount == 0) {
+        // Fetch table and tabletInfo only once and cache.
+        table = MapRDB.getTable(scanSpec.getTableName());
+        tabletInfos = table.getTabletInfos(scanSpec.getCondition());
 
-      // Fetch table and tabletInfo only once and cache.
-      table = MapRDB.getTable(scanSpec.getTableName());
-      tabletInfos = table.getTabletInfos(scanSpec.getCondition());
-
-      // Calculate totalRowCount for the table from tabletInfos estimatedRowCount.
-      // This will avoid calling expensive MapRDBTableStats API to get total rowCount, avoiding
-      // duplicate work and RPCs to MapR DB server.
-      for (TabletInfo tabletInfo : tabletInfos) {
-        totalRowCount += tabletInfo.getEstimatedNumRows();
+        // Calculate totalRowCount for the table from tabletInfos estimatedRowCount.
+        // This will avoid calling expensive MapRDBTableStats API to get total rowCount, avoiding
+        // duplicate work and RPCs to MapR DB server.
+        for (TabletInfo tabletInfo : tabletInfos) {
+          totalRowCount += tabletInfo.getEstimatedNumRows();
+        }
       }
-
-      computeRegionsToScan();
-
     } catch (Exception e) {
       throw new DrillRuntimeException("Error getting region info for table: " + scanSpec.getTableName(), e);
     }
@@ -165,9 +169,10 @@ public class JsonTableGroupScan extends MapRDBGroupScan {
   protected JsonSubScanSpec getSubScanSpec(TabletFragmentInfo tfi) {
     // XXX/TODO check filter/Condition
     JsonScanSpec spec = scanSpec;
+
     JsonSubScanSpec subScanSpec = new JsonSubScanSpec(
         spec.getTableName(),
-        regionsToScan.get(tfi),
+        getRegionsToScan().get(tfi),
         (!isNullOrEmpty(spec.getStartRow()) && tfi.containsRow(spec.getStartRow())) ? spec.getStartRow() : tfi.getStartKey(),
         (!isNullOrEmpty(spec.getStopRow()) && tfi.containsRow(spec.getStopRow())) ? spec.getStopRow() : tfi.getEndKey(),
         spec.getCondition());

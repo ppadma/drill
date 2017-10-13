@@ -21,8 +21,11 @@ import static org.apache.drill.exec.store.mapr.db.util.CommonFns.isNullOrEmpty;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.NavigableMap;
 import java.util.TreeMap;
 
+import com.mapr.db.TabletInfo;
+import com.mapr.db.impl.TabletInfoImpl;
 import org.apache.drill.common.exceptions.DrillRuntimeException;
 import org.apache.drill.common.exceptions.ExecutionSetupException;
 import org.apache.drill.common.expression.SchemaPath;
@@ -119,34 +122,50 @@ public class BinaryTableGroupScan extends MapRDBGroupScan implements DrillHBaseC
   }
 
   private void init() {
-    logger.debug("Getting region locations");
-    TableName tableName = TableName.valueOf(hbaseScanSpec.getTableName());
-    try (Admin admin = formatPlugin.getConnection().getAdmin();
-         RegionLocator locator = formatPlugin.getConnection().getRegionLocator(tableName)) {
-      hTableDesc = admin.getTableDescriptor(tableName);
-      // Fetch tableStats only once and cache it.
+    try {
       if (tableStats == null) {
         tableStats = new MapRDBTableStats(getHBaseConf(), hbaseScanSpec.getTableName());
-      }
-      boolean foundStartRegion = false;
-      regionsToScan = new TreeMap<>();
-      List<HRegionLocation> regionLocations = locator.getAllRegionLocations();
-      for (HRegionLocation regionLocation : regionLocations) {
-        HRegionInfo regionInfo = regionLocation.getRegionInfo();
-        if (!foundStartRegion && hbaseScanSpec.getStartRow() != null && hbaseScanSpec.getStartRow().length != 0 && !regionInfo.containsRow(hbaseScanSpec.getStartRow())) {
-          continue;
-        }
-        foundStartRegion = true;
-        regionsToScan.put(new TabletFragmentInfo(regionInfo), regionLocation.getHostname());
-        if (hbaseScanSpec.getStopRow() != null && hbaseScanSpec.getStopRow().length != 0 && regionInfo.containsRow(hbaseScanSpec.getStopRow())) {
-          break;
-        }
       }
     } catch (Exception e) {
       throw new DrillRuntimeException("Error getting region info for table: " + hbaseScanSpec.getTableName(), e);
     }
-    verifyColumns();
   }
+
+  /**
+   * Compute regions to scan based on the scanSpec
+   */
+  @Override
+  protected NavigableMap<TabletFragmentInfo, String> getRegionsToScan() {
+    if (doNotAccessRegionsToScan == null) {
+      TableName tableName = TableName.valueOf(hbaseScanSpec.getTableName());
+      try (Admin admin = formatPlugin.getConnection().getAdmin();
+           RegionLocator locator = formatPlugin.getConnection().getRegionLocator(tableName)) {
+        hTableDesc = admin.getTableDescriptor(tableName);
+        // Fetch tableStats only once and cache it.
+
+        boolean foundStartRegion = false;
+        final TreeMap<TabletFragmentInfo, String> regionsToScan = new TreeMap<TabletFragmentInfo, String>();
+        List<HRegionLocation> regionLocations = locator.getAllRegionLocations();
+        for (HRegionLocation regionLocation : regionLocations) {
+          HRegionInfo regionInfo = regionLocation.getRegionInfo();
+          if (!foundStartRegion && hbaseScanSpec.getStartRow() != null && hbaseScanSpec.getStartRow().length != 0 && !regionInfo.containsRow(hbaseScanSpec.getStartRow())) {
+            continue;
+          }
+          foundStartRegion = true;
+          regionsToScan.put(new TabletFragmentInfo(regionInfo), regionLocation.getHostname());
+          if (hbaseScanSpec.getStopRow() != null && hbaseScanSpec.getStopRow().length != 0 && regionInfo.containsRow(hbaseScanSpec.getStopRow())) {
+            break;
+          }
+        }
+        setRegionsToScan(regionsToScan);
+      } catch (Exception e) {
+          throw new DrillRuntimeException("Error getting region info for table: " + hbaseScanSpec.getTableName(), e);
+      }
+    }
+
+    return doNotAccessRegionsToScan;
+  }
+
 
   private void verifyColumns() {
     /*
@@ -165,7 +184,7 @@ public class BinaryTableGroupScan extends MapRDBGroupScan implements DrillHBaseC
     HBaseScanSpec spec = hbaseScanSpec;
     MapRDBSubScanSpec subScanSpec = new MapRDBSubScanSpec(
         spec.getTableName(),
-        regionsToScan.get(tfi),
+        getRegionsToScan().get(tfi),
         (!isNullOrEmpty(spec.getStartRow()) && tfi.containsRow(spec.getStartRow())) ? spec.getStartRow() : tfi.getStartKey(),
         (!isNullOrEmpty(spec.getStopRow()) && tfi.containsRow(spec.getStopRow())) ? spec.getStopRow() : tfi.getEndKey(),
         spec.getSerializedFilter(),
