@@ -17,33 +17,29 @@
  */
 package org.apache.drill.exec.expr.fn.impl;
 
-public class SqlPatternEndsWithMatcher implements SqlPatternMatcher {
-  final String patternString;
-  CharSequence charSequenceWrapper;
-  final int patternLength;
+import io.netty.buffer.DrillBuf;
 
-  public SqlPatternEndsWithMatcher(String patternString, CharSequence charSequenceWrapper) {
-    this.charSequenceWrapper = charSequenceWrapper;
-    this.patternString = patternString;
-    this.patternLength = patternString.length();
+public class SqlPatternEndsWithMatcher extends AbstractSqlPatternMatcher {
+
+  public SqlPatternEndsWithMatcher(String patternString) {
+    super(patternString);
   }
 
   @Override
-  public int match() {
-    int txtIndex = charSequenceWrapper.length();
-    int patternIndex = patternLength;
-    boolean matchFound = true; // if pattern is empty string, we always match.
+  public int match(int start, int end, DrillBuf drillBuf) {
+    if ( (end - start) < patternLength) { // No match if input string length is less than pattern length.
+      return 0;
+    }
 
     // simplePattern string has meta characters i.e % and _ and escape characters removed.
     // so, we can just directly compare.
-    while (patternIndex > 0 && txtIndex > 0) {
-      if (charSequenceWrapper.charAt(--txtIndex) != patternString.charAt(--patternIndex)) {
-        matchFound = false;
-        break;
+    for (int index = 1; index <= patternLength; index++) {
+      if (patternByteBuffer.get(patternLength - index) != drillBuf.getByte(end - index)) {
+        return 0;
       }
     }
 
-    return (patternIndex == 0 && matchFound == true) ? 1 : 0;
+    return 1;
   }
 
 }
