@@ -19,20 +19,19 @@
 package org.apache.drill.exec.expr.fn.impl;
 
 public class SqlPatternFactory {
-  public static SqlPatternMatcher getSqlPatternMatcher(org.apache.drill.exec.expr.fn.impl.RegexpUtil.SqlPatternInfo patternInfo,
-                                                       CharSequence charSequenceWrapper)
+  public static SqlPatternMatcher getSqlPatternMatcher(org.apache.drill.exec.expr.fn.impl.RegexpUtil.SqlPatternInfo patternInfo)
   {
     switch (patternInfo.getPatternType()) {
       case COMPLEX:
-        return new SqlPatternComplexMatcher(patternInfo.getJavaPatternString(), charSequenceWrapper);
+        return new SqlPatternComplexMatcher(patternInfo.getJavaPatternString());
       case STARTS_WITH:
-        return new SqlPatternStartsWithMatcher(patternInfo.getSimplePatternString(), charSequenceWrapper);
+        return new SqlPatternStartsWithMatcher(patternInfo.getSimplePatternString());
       case CONSTANT:
-        return new SqlPatternConstantMatcher(patternInfo.getSimplePatternString(), charSequenceWrapper);
+        return new SqlPatternConstantMatcher(patternInfo.getSimplePatternString());
       case ENDS_WITH:
-        return new SqlPatternEndsWithMatcher(patternInfo.getSimplePatternString(), charSequenceWrapper);
+        return new SqlPatternEndsWithMatcher(patternInfo.getSimplePatternString());
       case CONTAINS:
-        return new SqlPatternContainsMatcher(patternInfo.getSimplePatternString(), charSequenceWrapper);
+        return new SqlPatternContainsMatcher(patternInfo.getSimplePatternString());
       default:
         break;
     }

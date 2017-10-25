@@ -17,32 +17,51 @@
  */
 package org.apache.drill.exec.expr.fn.impl;
 
+import io.netty.buffer.DrillBuf;
+import org.apache.drill.common.exceptions.DrillRuntimeException;
+import java.nio.ByteBuffer;
+import java.nio.CharBuffer;
+import java.nio.charset.CharacterCodingException;
+import java.nio.charset.Charset;
+import java.nio.charset.CharsetEncoder;
+
 public class SqlPatternStartsWithMatcher implements SqlPatternMatcher {
   final String patternString;
-  CharSequence charSequenceWrapper;
   final int patternLength;
+  ByteBuffer patternByteBuffer;
 
-  public SqlPatternStartsWithMatcher(String patternString, CharSequence charSequenceWrapper) {
-    this.charSequenceWrapper = charSequenceWrapper;
+
+  public SqlPatternStartsWithMatcher(String patternString) {
     this.patternString = patternString;
-    patternLength = patternString.length();
+
+    CharsetEncoder charsetEncoder = Charset.forName("UTF-8").newEncoder();
+    CharBuffer patternCharBuffer = CharBuffer.wrap(patternString);
+    try {
+      this.patternByteBuffer = charsetEncoder.encode(patternCharBuffer);
+    } catch (CharacterCodingException e) {
+      throw new DrillRuntimeException("Error while encoding the pattern string " + patternString + " " + e);
+    }
+
+    this.patternLength = patternByteBuffer.limit();
   }
 
   @Override
-  public int match() {
+  public int match(int start, int end, DrillBuf drillBuf) {
     int index = 0;
-    final int txtLength = charSequenceWrapper.length();
+    ByteBuffer inputByteBuf;
+    inputByteBuf = drillBuf.nioBuffer(start, end - start);
+    int txtLength = inputByteBuf.limit();
 
     // simplePattern string has meta characters i.e % and _ and escape characters removed.
     // so, we can just directly compare.
     while (index < patternLength && index < txtLength) {
-      if (patternString.charAt(index) != charSequenceWrapper.charAt(index)) {
+      if (patternByteBuffer.get(index) != inputByteBuf.get(index)) {
         break;
       }
       index++;
     }
 
-    return (index == patternLength ? 1 : 0);
+    return (index == patternLength) ? 1 : 0;
   }
 
 }
