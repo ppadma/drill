@@ -18,51 +18,35 @@
 package org.apache.drill.exec.expr.fn.impl;
 
 import io.netty.buffer.DrillBuf;
-import org.apache.drill.common.exceptions.DrillRuntimeException;
 import java.nio.ByteBuffer;
-import java.nio.CharBuffer;
-import java.nio.charset.CharacterCodingException;
-import java.nio.charset.Charset;
-import java.nio.charset.CharsetEncoder;
 
-public class SqlPatternEndsWithMatcher implements SqlPatternMatcher {
-  final String patternString;
-  final int patternLength;
-  ByteBuffer patternByteBuffer;
-
+public class SqlPatternEndsWithMatcher extends AbstractSqlPatternMatcher {
 
   public SqlPatternEndsWithMatcher(String patternString) {
-    this.patternString = patternString;
-    CharsetEncoder charsetEncoder = Charset.forName("UTF-8").newEncoder();
-    CharBuffer patternCharBuffer = CharBuffer.wrap(patternString);
-    try {
-      this.patternByteBuffer = charsetEncoder.encode(patternCharBuffer);
-    } catch (CharacterCodingException e) {
-      throw new DrillRuntimeException("Error while encoding the pattern string " + patternString + " " + e);
-    }
-
-    this.patternLength = patternByteBuffer.limit();
+    super(patternString);
   }
 
   @Override
   public int match(int start, int end, DrillBuf drillBuf) {
     int patternIndex = patternLength;
-    boolean matchFound = true; // if pattern is empty string, we always match.
 
-    ByteBuffer inputBuffer;
-    inputBuffer = drillBuf.nioBuffer(start, end - start);
-    int txtIndex = inputBuffer.limit();
+   // ByteBuffer inputBuffer = drillBuf.nioBuffer(start, end - start);
+  //  int txtIndex = inputBuffer.limit();
+    int txtIndex = end - start;
+
+    if (txtIndex < patternIndex) {
+      return 0;
+    }
 
     // simplePattern string has meta characters i.e % and _ and escape characters removed.
     // so, we can just directly compare.
     while (patternIndex > 0 && txtIndex > 0) {
-      if (inputBuffer.get(--txtIndex) != patternByteBuffer.get(--patternIndex)) {
-        matchFound = false;
-        break;
+      if (drillBuf.getByte(start + --txtIndex) != patternByteBuffer.get(--patternIndex)) {
+        return 0;
       }
     }
 
-    return (patternIndex == 0 && matchFound == true) ? 1 : 0;
+    return 1;
   }
 
 }

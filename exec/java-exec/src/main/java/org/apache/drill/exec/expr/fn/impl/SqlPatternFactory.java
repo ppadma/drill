@@ -18,8 +18,10 @@
 
 package org.apache.drill.exec.expr.fn.impl;
 
+import org.apache.drill.exec.expr.fn.impl.RegexpUtil.SqlPatternInfo;
+
 public class SqlPatternFactory {
-  public static SqlPatternMatcher getSqlPatternMatcher(org.apache.drill.exec.expr.fn.impl.RegexpUtil.SqlPatternInfo patternInfo)
+  public static SqlPatternMatcher getSqlPatternMatcher(SqlPatternInfo patternInfo)
   {
     switch (patternInfo.getPatternType()) {
       case COMPLEX:

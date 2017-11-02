@@ -18,55 +18,36 @@
 package org.apache.drill.exec.expr.fn.impl;
 
 import io.netty.buffer.DrillBuf;
-import org.apache.drill.common.exceptions.DrillRuntimeException;
 import java.nio.ByteBuffer;
-import java.nio.CharBuffer;
-import java.nio.charset.CharacterCodingException;
-import java.nio.charset.Charset;
-import java.nio.charset.CharsetEncoder;
 
-public class SqlPatternConstantMatcher implements SqlPatternMatcher {
-  final String patternString;
-  final int patternLength;
-  ByteBuffer patternBytebuf;
+public class SqlPatternConstantMatcher extends AbstractSqlPatternMatcher {
 
   public SqlPatternConstantMatcher(String patternString) {
-    this.patternString = patternString;
-
-    CharsetEncoder charsetEncoder = Charset.forName("UTF-8").newEncoder();
-    CharBuffer patternCharBuffer = CharBuffer.wrap(patternString);
-    try {
-      this.patternBytebuf = charsetEncoder.encode(patternCharBuffer);
-    } catch (CharacterCodingException e) {
-      throw new DrillRuntimeException("Error while encoding the pattern string " + patternString + " " + e);
-    }
-
-    this.patternLength = patternBytebuf.limit();
+    super(patternString);
   }
 
   @Override
   public int match(int start, int end, DrillBuf drillBuf) {
     int index = 0;
 
-    ByteBuffer inputByteBuf;
-    inputByteBuf = drillBuf.nioBuffer(start, end - start);
+   // ByteBuffer inputByteBuf = drillBuf.nioBuffer(start, end - start);
+    int txtLength = end - start;
 
     // If the lengths are not same, there cannot be a match
-    if (patternLength != inputByteBuf.limit()) {
+    if (patternLength != txtLength) {
       return 0;
     }
 
     // simplePattern string has meta characters i.e % and _ and escape characters removed.
     // so, we can just directly compare.
     while (index < patternLength) {
-
-      if (patternBytebuf.get(index) != inputByteBuf.get(index)) {
-        break;
+      if (patternByteBuffer.get(index) != drillBuf.getByte(start + index)) {
+        return 0;
       }
       index++;
     }
 
-    return (index == patternLength) ? 1 : 0;
+    return 1;
   }
 
 }
