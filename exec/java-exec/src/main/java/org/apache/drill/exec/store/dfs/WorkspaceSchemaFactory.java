@@ -161,13 +161,13 @@ public class WorkspaceSchemaFactory {
       // complicated access control logic underneath.
       fs.access(wsPath, FsAction.READ);
     } catch (final UnsupportedOperationException e) {
-      logger.debug("The filesystem for this workspace does not support access operation.", e);
+      logger.debug("The filesystem for this workspace does not support access operation. file {} by user {} wsPath {}", wsPath.toString(), userName, wsPath, e);
       tryListStatus = true;
     } catch (final FileNotFoundException | AccessControlException e) {
-      logger.debug("not found or cannot be accessed exception while accessing file {} : ", wsPath.toString(), e);
+      logger.debug("not found or cannot be accessed exception while accessing file {} by user {} wsPath {}: ", wsPath.toString(), userName, wsPath, e);
       tryListStatus = true;
     } catch (final IOException e) {
-      logger.debug("IO Exception accessing file {}", wsPath.toString(), e);
+      logger.debug("IO Exception accessing file {} by user {} wsPath {}", wsPath.toString(), userName, wsPath, e);
       tryListStatus = true;
     }
 
@@ -178,7 +178,7 @@ public class WorkspaceSchemaFactory {
       } catch (final UnsupportedOperationException e) {
         logger.debug("The filesystem for this workspace does not support listStatus operation.", e);
       } catch (final FileNotFoundException | AccessControlException e) {
-        logger.debug("not found or cannot be accessed exception with listStatus for file {} ", wsPath.toString(), e);
+        logger.debug("not found or cannot be accessed exception with listStatus for file {} by user {} wsPath {}", wsPath.toString(), userName, wsPath, e);
         return false;
       }
     }
