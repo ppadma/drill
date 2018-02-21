@@ -111,14 +111,14 @@ public class TestOutputBatchSize extends PhysicalOpUnitTestBase {
     long totalSize = getExpectedSize(expectedJsonBatches);
 
     // set the output batch size to 1/2 of total size expected.
-    // We will get approximately 4 batches because of fragmentation factor of 2 accounted for in flatten.
+    // We will get approximately get 2 batches and max of 4.
     fragContext.getOptions().setLocalOption("drill.exec.memory.operator.output_batch_size", totalSize / 2);
 
     OperatorTestBuilder opTestBuilder = opTestBuilder()
       .physicalOperator(flatten)
       .inputDataStreamJson(inputJsonBatches)
       .baselineColumns("a", "b", "c")
-      .expectedNumBatches(4)  // verify number of batches
+      .expectedNumBatches(2)  // verify number of batches
       .expectedBatchSize(totalSize / 2); // verify batch size.
 
     for (int i = 0; i < numRows + 1; i++) {
@@ -179,14 +179,14 @@ public class TestOutputBatchSize extends PhysicalOpUnitTestBase {
     long totalSize = getExpectedSize(expectedJsonBatches);
 
     // set the output batch size to 1/2 of total size expected.
-    // We will get approximately 4 batches because of fragmentation factor of 2 accounted for in flatten.
+    // We will get approximately get 2 batches and max of 4.
     fragContext.getOptions().setLocalOption("drill.exec.memory.operator.output_batch_size", totalSize / 2);
 
     OperatorTestBuilder opTestBuilder = opTestBuilder()
       .physicalOperator(flatten)
       .inputDataStreamJson(inputJsonBatches)
       .baselineColumns("a", "b", "c")
-      .expectedNumBatches(4) // verify number of batches
+      .expectedNumBatches(2) // verify number of batches
       .expectedBatchSize(totalSize / 2); // verify batch size.
 
     for (int i = 0; i < numRows + 1; i++) {
@@ -241,14 +241,14 @@ public class TestOutputBatchSize extends PhysicalOpUnitTestBase {
 
     long totalSize = getExpectedSize(expectedJsonBatches);
     // set the output batch size to 1/2 of total size expected.
-    // We will get approximately 4 batches because of fragmentation factor of 2 accounted for in flatten.
+    // We will get approximately get 2 batches and max of 4.
     fragContext.getOptions().setLocalOption("drill.exec.memory.operator.output_batch_size", totalSize / 2);
 
     OperatorTestBuilder opTestBuilder = opTestBuilder()
       .physicalOperator(flatten)
       .inputDataStreamJson(inputJsonBatches)
       .baselineColumns("a", "b", "c")
-      .expectedNumBatches(4) // verify number of batches
+      .expectedNumBatches(2) // verify number of batches
       .expectedBatchSize(totalSize);  // verify batch size.
 
     for (int i = 0; i < numRows + 1; i++) {
@@ -302,14 +302,14 @@ public class TestOutputBatchSize extends PhysicalOpUnitTestBase {
 
     long totalSize = getExpectedSize(expectedJsonBatches);
     // set the output batch size to 1/2 of total size expected.
-    // We will get approximately 4 batches because of fragmentation factor of 2 accounted for in flatten.
+    // We will get approximately get 2 batches and max of 4.
     fragContext.getOptions().setLocalOption("drill.exec.memory.operator.output_batch_size", totalSize / 2);
 
     OperatorTestBuilder opTestBuilder = opTestBuilder()
       .physicalOperator(flatten)
       .inputDataStreamJson(inputJsonBatches)
       .baselineColumns("a", "b", "c")
-      .expectedNumBatches(4) // verify number of batches
+      .expectedNumBatches(2) // verify number of batches
       .expectedBatchSize(totalSize);  // verify batch size.
 
     final JsonStringArrayList<Text> birds1 = new JsonStringArrayList<Text>() {{
@@ -390,14 +390,14 @@ public class TestOutputBatchSize extends PhysicalOpUnitTestBase {
 
     long totalSize = getExpectedSize(expectedJsonBatches);
     // set the output batch size to 1/2 of total size expected.
-    // We will get approximately 4 batches because of fragmentation factor of 2 accounted for in flatten.
+    // We will get approximately get 2 batches and max of 4.
     fragContext.getOptions().setLocalOption("drill.exec.memory.operator.output_batch_size", totalSize / 2);
 
     OperatorTestBuilder opTestBuilder = opTestBuilder()
       .physicalOperator(flatten)
       .inputDataStreamJson(inputJsonBatches)
       .baselineColumns("a", "b", "c")
-      .expectedNumBatches(4) // verify number of batches
+      .expectedNumBatches(2) // verify number of batches
       .expectedBatchSize(totalSize / 2);  // verify batch size.
 
     JsonStringHashMap<String, Object> resultExpected1 = new JsonStringHashMap<>();
@@ -499,14 +499,14 @@ public class TestOutputBatchSize extends PhysicalOpUnitTestBase {
 
     long totalSize = getExpectedSize(expectedJsonBatches);
     // set the output batch size to 1/2 of total size expected.
-    // We will get approximately 4 batches because of fragmentation factor of 2 accounted for in flatten.
+    // We will get approximately get 2 batches and max of 4.
     fragContext.getOptions().setLocalOption("drill.exec.memory.operator.output_batch_size", totalSize / 2);
 
     OperatorTestBuilder opTestBuilder = opTestBuilder()
       .physicalOperator(flatten)
       .inputDataStreamJson(inputJsonBatches)
       .baselineColumns("a", "b", "c")
-      .expectedNumBatches(4) // verify number of batches
+      .expectedNumBatches(2) // verify number of batches
       .expectedBatchSize(totalSize / 2);  // verify batch size.
 
     final JsonStringHashMap<String, Object> resultExpected1 = new JsonStringHashMap<>();
@@ -597,14 +597,14 @@ public class TestOutputBatchSize extends PhysicalOpUnitTestBase {
 
     long totalSize = getExpectedSize(expectedJsonBatches);
     // set the output batch size to 1/2 of total size expected.
-    // We will get approximately 4 batches because of fragmentation factor of 2 accounted for in flatten.
+    // We will get approximately get 2 batches and max of 4.
     fragContext.getOptions().setLocalOption("drill.exec.memory.operator.output_batch_size", totalSize / 2);
 
     OperatorTestBuilder opTestBuilder = opTestBuilder()
       .physicalOperator(flatten)
       .inputDataStreamJson(inputJsonBatches)
       .baselineColumns("a", "b", "c")
-      .expectedNumBatches(4) // verify number of batches
+      .expectedNumBatches(2) // verify number of batches
       .expectedBatchSize(totalSize / 2);  // verify batch size.
 
     JsonStringHashMap<String, Object> innerMapResult = new JsonStringHashMap<>();
@@ -694,7 +694,7 @@ public class TestOutputBatchSize extends PhysicalOpUnitTestBase {
 
     long totalSize = getExpectedSize(expectedJsonBatches);
     // set the output batch size to 1/2 of total size expected.
-    // We will get approximately 4 batches because of fragmentation factor of 2 accounted for in flatten.
+    // We will get 16 batches because of upper bound of 65535 rows.
     fragContext.getOptions().setLocalOption("drill.exec.memory.operator.output_batch_size", totalSize / 2);
 
     // Here we expect 16 batches because each batch will be limited by upper limit of 65535 records.
@@ -863,14 +863,14 @@ public class TestOutputBatchSize extends PhysicalOpUnitTestBase {
 
     long totalSize = getExpectedSize(expectedJsonBatches);
     // set the output batch size to 1/2 of total size expected.
-    // We will get approximately 4 batches because of fragmentation factor of 2 accounted for in flatten.
+    // We will get approximately get 2 batches and max of 4.
     fragContext.getOptions().setLocalOption("drill.exec.memory.operator.output_batch_size", totalSize / 2);
 
     OperatorTestBuilder opTestBuilder = opTestBuilder()
       .physicalOperator(flatten)
       .inputDataStreamJson(inputJsonBatches)
       .baselineColumns("a", "b", "c")
-      .expectedNumBatches(4) // verify number of batches
+      .expectedNumBatches(2) // verify number of batches
       .expectedBatchSize(totalSize / 2);  // verify batch size.
 
     for (long k = 0; k < ((numRows + 1)); k++) {

@@ -56,17 +56,17 @@ public class VectorInitializer {
     @Override
     public String toString() {
       StringBuilder buf = new StringBuilder()
-          .append("{");
+        .append("{");
       String sep = "";
       if (entryWidth > 0) {
         buf.append("width=")
-           .append(entryWidth);
+          .append(entryWidth);
         sep = ", ";
       }
       if (elementCount > 0) {
         buf.append(sep)
-           .append("elements=")
-           .append(elementCount);
+          .append("elements=")
+          .append(elementCount);
       }
       buf.append("}");
       return buf.toString();
@@ -97,7 +97,7 @@ public class VectorInitializer {
     }
   }
 
-  private void allocateVector(ValueVector vector, String prefix, int recordCount) {
+  public void allocateVector(ValueVector vector, String prefix, int recordCount) {
     String key = prefix + vector.getField().getName();
     AllocationHint hint = hints.get(key);
     if (vector instanceof AbstractMapVector) {

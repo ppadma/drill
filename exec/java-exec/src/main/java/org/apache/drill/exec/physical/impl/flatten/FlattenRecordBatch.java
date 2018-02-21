@@ -50,6 +50,7 @@ import org.apache.drill.exec.record.RecordBatch;
 import org.apache.drill.exec.record.TransferPair;
 import org.apache.drill.exec.record.TypedFieldId;
 import org.apache.drill.exec.record.VectorContainer;
+import org.apache.drill.exec.record.VectorInitializer;
 import org.apache.drill.exec.record.VectorWrapper;
 import org.apache.drill.exec.vector.ValueVector;
 import org.apache.drill.exec.vector.complex.RepeatedMapVector;
@@ -104,7 +105,7 @@ public class FlattenRecordBatch extends AbstractSingleRecordBatch<FlattenPOP> {
     @Override
     public void update() {
       // Get sizing information for the batch.
-      RecordBatchSizer sizer = new RecordBatchSizer(incoming);
+      setRecordBatchSizer(new RecordBatchSizer(incoming));
 
       final TypedFieldId typedFieldId = incoming.getValueVectorId(popConfig.getColumn());
       final MaterializedField field = incoming.getSchema().getColumn(typedFieldId.getFieldIds()[0]);
@@ -117,7 +118,7 @@ public class FlattenRecordBatch extends AbstractSingleRecordBatch<FlattenPOP> {
       final int avgRowWidthFlattenColumn = RecordBatchSizer.safeDivide(columnSize.netSize, incoming.getRecordCount());
 
       // Average rowWidth excluding the flatten column.
-      final int avgRowWidthWithOutFlattenColumn = sizer.netRowWidth() - avgRowWidthFlattenColumn;
+      final int avgRowWidthWithOutFlattenColumn = getRecordBatchSizer().netRowWidth() - avgRowWidthFlattenColumn;
 
       // Average rowWidth of single element in the flatten list.
       // subtract the offset vector size from column data size.
@@ -130,12 +131,15 @@ public class FlattenRecordBatch extends AbstractSingleRecordBatch<FlattenPOP> {
       // Number of rows in outgoing batch
       setOutputRowCount(outputBatchSize, avgOutgoingRowWidth);
 
+      // Limit to lower bound of total number of rows possible for this batch
+      // i.e. all rows fit within memory budget.
+      setOutputRowCount(Math.min(columnSize.elementCount, getOutputRowCount()));
+
       logger.debug("flatten incoming batch sizer : {}, outputBatchSize : {}," +
-        "avgOutgoingRowWidth : {}, outputRowCount : {}", sizer, outputBatchSize, avgOutgoingRowWidth, getOutputRowCount());
+        "avgOutgoingRowWidth : {}, outputRowCount : {}", getRecordBatchSizer(), outputBatchSize,
+        avgOutgoingRowWidth, getOutputRowCount());
     }
-
   }
-
 
   public FlattenRecordBatch(FlattenPOP pop, RecordBatch incoming, FragmentContext context) throws OutOfMemoryException {
     super(pop, context, incoming);
@@ -199,7 +203,7 @@ public class FlattenRecordBatch extends AbstractSingleRecordBatch<FlattenPOP> {
 
     int incomingRecordCount = incoming.getRecordCount();
 
-    if (!doAlloc()) {
+    if (!doAlloc(flattenMemoryManager.getOutputRowCount())) {
       outOfMemory = true;
       return IterOutcome.OUT_OF_MEMORY;
     }
@@ -235,7 +239,7 @@ public class FlattenRecordBatch extends AbstractSingleRecordBatch<FlattenPOP> {
 
   private void handleRemainder() {
     int remainingRecordCount = flattener.getFlattenField().getAccessor().getInnerValueCount() - remainderIndex;
-    if (!doAlloc()) {
+    if (!doAlloc(remainingRecordCount)) {
       outOfMemory = true;
       return;
     }
@@ -266,12 +270,18 @@ public class FlattenRecordBatch extends AbstractSingleRecordBatch<FlattenPOP> {
     complexWriters.add(writer);
   }
 
-  private boolean doAlloc() {
-    //Allocate vv in the allocationVectors.
+  private boolean doAlloc(int recordCount) {
+
+    //Allocate v in the allocationVectors.
     for (ValueVector v : this.allocationVectors) {
-      if (!v.allocateNewSafe()) {
-        return false;
-      }
+      // build vector initializer for the column.
+      // This will iteratively include all nested columns underneath.
+      RecordBatchSizer.ColumnSize colSize = flattenMemoryManager.getColumnSize(v.getField().getName());
+      VectorInitializer initializer = new VectorInitializer();
+      colSize.buildVectorInitializer(initializer);
+      // Allocate memory for the vector. If it is map, it will allocate memory
+      // for all nested child columns as well.
+      initializer.allocateVector(v, "", recordCount);
     }
 
     //Allocate vv for complexWriters.
