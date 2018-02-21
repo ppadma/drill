@@ -108,6 +108,12 @@ public class RecordBatchSizer {
     public final float estElementCountPerArray;
     public final boolean isVariableWidth;
 
+    public Map<String, ColumnSize> childColumnSizes = CaseInsensitiveMap.newHashMap();
+
+    public Map<String, ColumnSize> getChildColumnSizes() {
+      return childColumnSizes;
+    }
+
     public ColumnSize(ValueVector v, String prefix) {
       this.prefix = prefix;
       valueCount = v.getAccessor().getValueCount();
@@ -214,7 +220,7 @@ public class RecordBatchSizer {
      * for this column
      */
 
-    private void buildVectorInitializer(VectorInitializer initializer) {
+    public void buildVectorInitializer(VectorInitializer initializer) {
       int width = 0;
       switch(metadata.getType().getMinorType()) {
       case VAR16CHAR:
@@ -245,16 +251,30 @@ public class RecordBatchSizer {
       else if (width > 0) {
         initializer.variableWidth(name, width);
       }
+
+      for (ColumnSize columnSize : childColumnSizes.values()) {
+        columnSize.buildVectorInitializer(initializer);
+      }
     }
+
   }
 
   public static ColumnSize getColumn(ValueVector v, String prefix) {
     return new ColumnSize(v, prefix);
   }
 
+  public ColumnSize getColumn(String name) {
+    return allColumnSizes.get(name);
+  }
+
   public static final int MAX_VECTOR_SIZE = ValueVector.MAX_BUFFER_SIZE; // 16 MiB
 
-  private Map<String, ColumnSize> columnSizes = CaseInsensitiveMap.newHashMap();
+  // This keeps information for all columns i.e. all top columns and nested columns underneath
+  private Map<String, ColumnSize> allColumnSizes = CaseInsensitiveMap.newHashMap();
+
+  // This keeps information for only top level columns. Information for nested
+  // columns can be obtained from childColumns of topColumns.
+  private Map<String, ColumnSize> topColumnSizes = CaseInsensitiveMap.newHashMap();
 
   /**
    * Number of records (rows) in the batch.
@@ -334,7 +354,7 @@ public class RecordBatchSizer {
   public RecordBatchSizer(VectorAccessible va, SelectionVector2 sv2) {
     rowCount = va.getRecordCount();
     for (VectorWrapper<?> vw : va) {
-      measureColumn(vw.getValueVector(), "");
+      topColumnSizes.put(vw.getField().getName(), measureColumn(vw.getValueVector(), ""));
     }
 
     for (BufferLedger ledger : ledgers) {
@@ -385,10 +405,10 @@ public class RecordBatchSizer {
     return 64;
   }
 
-  private void measureColumn(ValueVector v, String prefix) {
+  private ColumnSize measureColumn(ValueVector v, String prefix) {
 
     ColumnSize colSize = new ColumnSize(v, prefix);
-    columnSizes.put(v.getField().getName(), colSize);
+    allColumnSizes.put(v.getField().getName(), colSize);
     stdRowWidth += colSize.stdSize;
     netBatchSize += colSize.dataSize;
     maxSize = Math.max(maxSize, colSize.dataSize);
@@ -401,7 +421,7 @@ public class RecordBatchSizer {
 
     switch (v.getField().getType().getMinorType()) {
       case MAP:
-        expandMap((AbstractMapVector) v, prefix + v.getField().getName() + ".");
+        expandMap(colSize, (AbstractMapVector) v, prefix + v.getField().getName() + ".");
         break;
       case LIST:
         // complex ListVector cannot be casted to RepeatedListVector.
@@ -418,11 +438,13 @@ public class RecordBatchSizer {
     netRowWidthCap50 += ! colSize.isVariableWidth ? colSize.estSize :
         8 /* offset vector */ + roundUpToPowerOf2(Math.min(colSize.estSize,50));
         // above change 8 to 4 after DRILL-5446 is fixed
+
+    return colSize;
   }
 
-  private void expandMap(AbstractMapVector mapVector, String prefix) {
+  private void expandMap(ColumnSize colSize, AbstractMapVector mapVector, String prefix) {
     for (ValueVector vector : mapVector) {
-      measureColumn(vector, prefix);
+      colSize.childColumnSizes.put(prefix + vector.getField().getName(), measureColumn(vector, prefix));
     }
 
     // For a repeated map, we need the memory for the offset vector (only).
@@ -452,7 +474,7 @@ public class RecordBatchSizer {
   public int stdRowWidth() { return stdRowWidth; }
   public int grossRowWidth() { return grossRowWidth; }
   public int netRowWidth() { return netRowWidth; }
-  public Map<String, ColumnSize> columns() { return columnSizes; }
+  public Map<String, ColumnSize> columns() { return allColumnSizes; }
 
   /**
    * Compute the "real" width of the row, taking into account each varchar column size
@@ -471,7 +493,7 @@ public class RecordBatchSizer {
   public String toString() {
     StringBuilder buf = new StringBuilder();
     buf.append("Actual batch schema & sizes {\n");
-    for (ColumnSize colSize : columnSizes.values()) {
+    for (ColumnSize colSize : allColumnSizes.values()) {
       buf.append("  ");
       buf.append(colSize.toString());
       buf.append("\n");
@@ -502,7 +524,7 @@ public class RecordBatchSizer {
 
   public VectorInitializer buildVectorInitializer() {
     VectorInitializer initializer = new VectorInitializer();
-    for (ColumnSize colSize : columnSizes.values()) {
+    for (ColumnSize colSize : allColumnSizes.values()) {
       colSize.buildVectorInitializer(initializer);
     }
     return initializer;
