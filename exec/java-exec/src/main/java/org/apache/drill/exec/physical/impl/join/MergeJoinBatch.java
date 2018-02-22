@@ -54,6 +54,7 @@ import org.apache.drill.exec.record.RecordIterator;
 import org.apache.drill.exec.record.TypedFieldId;
 import org.apache.drill.exec.record.VectorAccessible;
 import org.apache.drill.exec.record.VectorContainer;
+import org.apache.drill.exec.record.VectorInitializer;
 import org.apache.drill.exec.record.VectorWrapper;
 import org.apache.drill.exec.record.AbstractRecordBatch;
 import org.apache.drill.exec.record.AbstractRecordBatchMemoryManager;
@@ -114,6 +115,9 @@ public class MergeJoinBatch extends AbstractRecordBatch<MergeJoinPOP> {
     private int leftRowWidth;
     private int rightRowWidth;
 
+    private RecordBatchSizer leftSizer;
+    private RecordBatchSizer rightSizer;
+
     /**
      * mergejoin operates on one record at a time from the left and right batches
      * using RecordIterator abstraction. We have a callback mechanism to get notified
@@ -126,11 +130,11 @@ public class MergeJoinBatch extends AbstractRecordBatch<MergeJoinPOP> {
     public void update(int inputIndex) {
       switch(inputIndex) {
         case 0:
-          final RecordBatchSizer leftSizer = new RecordBatchSizer(left);
+          leftSizer = new RecordBatchSizer(left);
           leftRowWidth = leftSizer.netRowWidth();
           break;
         case 1:
-          final RecordBatchSizer rightSizer = new RecordBatchSizer(right);
+          rightSizer = new RecordBatchSizer(right);
           rightRowWidth = rightSizer.netRowWidth();
         default:
           break;
@@ -157,6 +161,14 @@ public class MergeJoinBatch extends AbstractRecordBatch<MergeJoinPOP> {
 
       status.setTargetOutputRowCount(status.getOutPosition() + numOutputRowsRemaining);
       setOutgoingRowWidth(newOutgoingRowWidth);
+    }
+
+    @Override
+    public RecordBatchSizer.ColumnSize getColumnSize(String name) {
+      if (leftSizer != null && leftSizer.getColumn(name) != null) {
+        return leftSizer.getColumn(name);
+      }
+      return rightSizer == null ? null : rightSizer.getColumn(name);
     }
   }
 
@@ -493,7 +505,14 @@ public class MergeJoinBatch extends AbstractRecordBatch<MergeJoinPOP> {
       container.zeroVectors();
     }
     for (VectorWrapper w : container) {
-      AllocationHelper.allocateNew(w.getValueVector(), Character.MAX_VALUE);
+      // build vector initializer for the column.
+      // This will iteratively include all nested columns underneath.
+      RecordBatchSizer.ColumnSize colSize = mergeJoinMemoryManager.getColumnSize(w.getField().getName());
+      VectorInitializer initializer = new VectorInitializer();
+      colSize.buildVectorInitializer(initializer);
+      // Allocate memory for the vector. If it is map, it will allocate memory
+      // for all nested child columns as well.
+      initializer.allocateVector(w.getValueVector(), "", mergeJoinMemoryManager.getOutputRowCount());
     }
 
     container.buildSchema(BatchSchema.SelectionVectorMode.NONE);
