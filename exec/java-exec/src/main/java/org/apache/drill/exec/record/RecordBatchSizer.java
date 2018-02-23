@@ -108,10 +108,10 @@ public class RecordBatchSizer {
     public final float estElementCountPerArray;
     public final boolean isVariableWidth;
 
-    public Map<String, ColumnSize> childColumnSizes = CaseInsensitiveMap.newHashMap();
+    public Map<String, ColumnSize> children = CaseInsensitiveMap.newHashMap();
 
-    public Map<String, ColumnSize> getChildColumnSizes() {
-      return childColumnSizes;
+    public Map<String, ColumnSize> getChildren() {
+      return children;
     }
 
     public ColumnSize(ValueVector v, String prefix) {
@@ -252,7 +252,7 @@ public class RecordBatchSizer {
         initializer.variableWidth(name, width);
       }
 
-      for (ColumnSize columnSize : childColumnSizes.values()) {
+      for (ColumnSize columnSize : children.values()) {
         columnSize.buildVectorInitializer(initializer);
       }
     }
@@ -264,17 +264,14 @@ public class RecordBatchSizer {
   }
 
   public ColumnSize getColumn(String name) {
-    return allColumnSizes.get(name);
+    return columnSizes.get(name);
   }
 
   public static final int MAX_VECTOR_SIZE = ValueVector.MAX_BUFFER_SIZE; // 16 MiB
 
-  // This keeps information for all columns i.e. all top columns and nested columns underneath
-  private Map<String, ColumnSize> allColumnSizes = CaseInsensitiveMap.newHashMap();
-
   // This keeps information for only top level columns. Information for nested
-  // columns can be obtained from childColumns of topColumns.
-  private Map<String, ColumnSize> topColumnSizes = CaseInsensitiveMap.newHashMap();
+  // columns can be obtained from children of topColumns.
+  private Map<String, ColumnSize> columnSizes = CaseInsensitiveMap.newHashMap();
 
   /**
    * Number of records (rows) in the batch.
@@ -354,7 +351,7 @@ public class RecordBatchSizer {
   public RecordBatchSizer(VectorAccessible va, SelectionVector2 sv2) {
     rowCount = va.getRecordCount();
     for (VectorWrapper<?> vw : va) {
-      topColumnSizes.put(vw.getField().getName(), measureColumn(vw.getValueVector(), ""));
+      columnSizes.put(vw.getField().getName(), measureColumn(vw.getValueVector(), ""));
     }
 
     for (BufferLedger ledger : ledgers) {
@@ -408,7 +405,6 @@ public class RecordBatchSizer {
   private ColumnSize measureColumn(ValueVector v, String prefix) {
 
     ColumnSize colSize = new ColumnSize(v, prefix);
-    allColumnSizes.put(v.getField().getName(), colSize);
     stdRowWidth += colSize.stdSize;
     netBatchSize += colSize.dataSize;
     maxSize = Math.max(maxSize, colSize.dataSize);
@@ -444,7 +440,7 @@ public class RecordBatchSizer {
 
   private void expandMap(ColumnSize colSize, AbstractMapVector mapVector, String prefix) {
     for (ValueVector vector : mapVector) {
-      colSize.childColumnSizes.put(prefix + vector.getField().getName(), measureColumn(vector, prefix));
+      colSize.children.put(vector.getField().getName(), measureColumn(vector, prefix));
     }
 
     // For a repeated map, we need the memory for the offset vector (only).
@@ -474,7 +470,7 @@ public class RecordBatchSizer {
   public int stdRowWidth() { return stdRowWidth; }
   public int grossRowWidth() { return grossRowWidth; }
   public int netRowWidth() { return netRowWidth; }
-  public Map<String, ColumnSize> columns() { return allColumnSizes; }
+  public Map<String, ColumnSize> columns() { return columnSizes; }
 
   /**
    * Compute the "real" width of the row, taking into account each varchar column size
@@ -493,7 +489,7 @@ public class RecordBatchSizer {
   public String toString() {
     StringBuilder buf = new StringBuilder();
     buf.append("Actual batch schema & sizes {\n");
-    for (ColumnSize colSize : allColumnSizes.values()) {
+    for (ColumnSize colSize : columnSizes.values()) {
       buf.append("  ");
       buf.append(colSize.toString());
       buf.append("\n");
@@ -524,7 +520,7 @@ public class RecordBatchSizer {
 
   public VectorInitializer buildVectorInitializer() {
     VectorInitializer initializer = new VectorInitializer();
-    for (ColumnSize colSize : allColumnSizes.values()) {
+    for (ColumnSize colSize : columnSizes.values()) {
       colSize.buildVectorInitializer(initializer);
     }
     return initializer;

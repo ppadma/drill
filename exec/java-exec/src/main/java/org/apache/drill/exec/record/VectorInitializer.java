@@ -17,7 +17,6 @@
  */
 package org.apache.drill.exec.record;
 
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Map.Entry;
 
@@ -25,6 +24,7 @@ import org.apache.drill.exec.vector.AllocationHelper;
 import org.apache.drill.exec.vector.ValueVector;
 import org.apache.drill.exec.vector.complex.AbstractMapVector;
 import org.apache.drill.exec.vector.complex.RepeatedMapVector;
+import org.apache.drill.common.map.CaseInsensitiveMap;
 
 import com.google.common.annotations.VisibleForTesting;
 
@@ -73,7 +73,7 @@ public class VectorInitializer {
     }
   }
 
-  private Map<String, AllocationHint> hints = new HashMap<>();
+  private Map<String, AllocationHint> hints = CaseInsensitiveMap.newHashMap();
 
   public void variableWidth(String name, int width) {
     hints.put(name, new AllocationHint(width, 1));
