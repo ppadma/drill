@@ -17,6 +17,7 @@
  */
 package org.apache.drill.exec.record;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 
@@ -97,6 +98,12 @@ public class VectorInitializer {
     }
   }
 
+  public void allocateVectors(List<ValueVector> valueVectors, int recordCount) {
+    for (ValueVector v : valueVectors) {
+      allocateVector(v, v.getField().getName(), recordCount);
+    }
+  }
+
   public void allocateVector(ValueVector vector, String prefix, int recordCount) {
     String key = prefix + vector.getField().getName();
     AllocationHint hint = hints.get(key);
@@ -117,7 +124,7 @@ public class VectorInitializer {
 //        ", " + size);
   }
 
-  private void allocateVector(ValueVector vector, int recordCount, AllocationHint hint) {
+  public void allocateVector(ValueVector vector, int recordCount, AllocationHint hint) {
     if (hint == null) {
       // Use hard-coded values. Same as ScanBatch
 
@@ -127,7 +134,7 @@ public class VectorInitializer {
     }
   }
 
-  private void allocateMap(AbstractMapVector map, String prefix, int recordCount, AllocationHint hint) {
+  public void allocateMap(AbstractMapVector map, String prefix, int recordCount, AllocationHint hint) {
     if (map instanceof RepeatedMapVector) {
       ((RepeatedMapVector) map).allocateOffsetsNew(recordCount);
       if (hint == null) {

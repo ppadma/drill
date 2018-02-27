@@ -372,12 +372,16 @@ public abstract class AbstractTupleWriter implements TupleWriter, WriterEvents {
   @Override
   public void setObject(Object value) {
     Object values[] = (Object[]) value;
+
+    /*
     if (values.length != schema.size()) {
       throw new IllegalArgumentException(
           "Map has " + schema.size() +
           " columns, but value array has " +
           values.length + " values.");
     }
+    */
+
     for (int i = 0; i < values.length; i++) {
       set(i, values[i]);
     }

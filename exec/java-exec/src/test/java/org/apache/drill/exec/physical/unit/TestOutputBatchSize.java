@@ -62,6 +62,8 @@ public class TestOutputBatchSize extends PhysicalOpUnitTestBase {
     for (VectorAccessible batch : batches) {
       RecordBatchSizer sizer = new RecordBatchSizer(batch);
       totalSize += sizer.netSize();
+      long finalSize = totalSize;
+      finalSize = finalSize;
     }
     return totalSize;
   }

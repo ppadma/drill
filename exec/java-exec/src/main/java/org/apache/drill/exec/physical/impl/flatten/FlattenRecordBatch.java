@@ -111,11 +111,10 @@ public class FlattenRecordBatch extends AbstractSingleRecordBatch<FlattenPOP> {
       final MaterializedField field = incoming.getSchema().getColumn(typedFieldId.getFieldIds()[0]);
 
       // Get column size of flatten column.
-      RecordBatchSizer.ColumnSize columnSize = RecordBatchSizer.getColumn(incoming.getValueAccessorById(field.getValueClass(),
-        typedFieldId.getFieldIds()).getValueVector(), field.getName());
+      RecordBatchSizer.ColumnSize columnSize = getRecordBatchSizer().getColumn(field.getName());
 
       // Average rowWidth of flatten column
-      final int avgRowWidthFlattenColumn = RecordBatchSizer.safeDivide(columnSize.netSize, incoming.getRecordCount());
+      final int avgRowWidthFlattenColumn = columnSize.getNetSize();
 
       // Average rowWidth excluding the flatten column.
       final int avgRowWidthWithOutFlattenColumn = getRecordBatchSizer().netRowWidth() - avgRowWidthFlattenColumn;
@@ -123,7 +122,7 @@ public class FlattenRecordBatch extends AbstractSingleRecordBatch<FlattenPOP> {
       // Average rowWidth of single element in the flatten list.
       // subtract the offset vector size from column data size.
       final int avgRowWidthSingleFlattenEntry =
-        RecordBatchSizer.safeDivide(columnSize.netSize - (OFFSET_VECTOR_WIDTH * columnSize.valueCount), columnSize.elementCount);
+        RecordBatchSizer.safeDivide(columnSize.getTotalNetSize() - (OFFSET_VECTOR_WIDTH * columnSize.getValueCount()), columnSize.getElementCount());
 
       // Average rowWidth of outgoing batch.
       final int avgOutgoingRowWidth = avgRowWidthWithOutFlattenColumn + avgRowWidthSingleFlattenEntry;
@@ -133,7 +132,7 @@ public class FlattenRecordBatch extends AbstractSingleRecordBatch<FlattenPOP> {
 
       // Limit to lower bound of total number of rows possible for this batch
       // i.e. all rows fit within memory budget.
-      setOutputRowCount(Math.min(columnSize.elementCount, getOutputRowCount()));
+      setOutputRowCount(Math.min(columnSize.getElementCount(), getOutputRowCount()));
 
       logger.debug("flatten incoming batch sizer : {}, outputBatchSize : {}," +
         "avgOutgoingRowWidth : {}, outputRowCount : {}", getRecordBatchSizer(), outputBatchSize,

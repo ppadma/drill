@@ -27,6 +27,10 @@ import org.apache.drill.exec.expr.TypeHelper;
 import org.apache.drill.exec.memory.AllocationManager.BufferLedger;
 import org.apache.drill.exec.memory.BaseAllocator;
 import org.apache.drill.exec.record.selection.SelectionVector2;
+import org.apache.drill.exec.vector.BitVector;
+import org.apache.drill.exec.vector.NullableBitVector;
+import org.apache.drill.exec.vector.NullableVector;
+import org.apache.drill.exec.vector.UInt1Vector;
 import org.apache.drill.exec.vector.UInt4Vector;
 import org.apache.drill.exec.vector.ValueVector;
 import org.apache.drill.exec.vector.complex.AbstractMapVector;
@@ -36,6 +40,7 @@ import org.apache.drill.exec.vector.complex.RepeatedValueVector;
 import org.apache.drill.exec.vector.VariableWidthVector;
 
 import com.google.common.collect.Sets;
+import org.apache.drill.exec.vector.complex.RepeatedVariableWidthVectorLike;
 
 /**
  * Given a record batch or vector container, determines the actual memory
@@ -52,20 +57,86 @@ public class RecordBatchSizer {
     public final MaterializedField metadata;
 
     /**
-     * Assumed size from Drill metadata. Note that this information is
-     * 100% bogus for variable-width columns. Do not use it for such
-     * columns.
+     * Assumed size per entry from Drill metadata, based on type.
+     * This is what typeHelper would return. Note that this information is
+     * just an approximation for variable-width columns.
+     * It is not accurate and hence, not recommended to use for variable
+     * width columns.
      */
+    private int stdDataSize;
 
-    public int stdSize;
+    private int stdNetSize;
 
     /**
+     * This is the average per entry raw data size in bytes. Does not
+     * include any overhead.
+     */
+    private int dataSize;
+
+    /**
+     * This is the average per entry size of just pure data plus
+     * overhead of additional vectors we add on top like bits vector,
+     * offset vector etc.
      * Actual average column width as determined from actual memory use. This
      * size is larger than the actual data size since this size includes per-
      * column overhead such as any unused vector space, etc.
      */
+    private int netSize;
 
-    public final int estSize;
+    private int totalDataSize; // for all entries
+
+    private int totalNetSize; // for all entries.
+
+    public int getStdDataSize() {
+      int mapStdDataSize = this.stdDataSize;
+      for (ColumnSize columnSize : children.values()) {
+        mapStdDataSize += columnSize.getStdDataSize();
+      }
+      return mapStdDataSize;
+    }
+
+    public int getStdNetSize() {
+      int mapStdNetSize = this.stdNetSize;
+      for (ColumnSize columnSize : children.values()) {
+        mapStdNetSize += columnSize.getStdNetSize();
+      }
+      return mapStdNetSize;
+    }
+
+    public int getDataSize() {
+      int mapDataSize = this.dataSize;
+      for (ColumnSize columnSize : children.values()) {
+        mapDataSize += columnSize.getDataSize();
+      }
+      return mapDataSize;
+    }
+
+    public int getNetSize() {
+      return RecordBatchSizer.safeDivide(getTotalNetSize(), getValueCount());
+    }
+
+    public int getTotalDataSize() {
+      int mapTotalDataSize = this.totalDataSize;
+      for (ColumnSize columnSize : children.values()) {
+        mapTotalDataSize += columnSize.getTotalDataSize();
+      }
+      return mapTotalDataSize;
+    }
+
+    public int getTotalNetSize() {
+
+      int mapTotalNetSize = this.totalNetSize;
+      for (ColumnSize columnSize : children.values()) {
+        mapTotalNetSize += columnSize.getTotalNetSize();
+      }
+      return mapTotalNetSize;
+
+     // return totalNetSize;
+    }
+
+    public int getValueCount() {
+      return valueCount;
+    }
 
     /**
      * Number of occurrences of the value in the batch. This is trivial
@@ -76,28 +147,24 @@ public class RecordBatchSizer {
      * greater than (but unlikely) same as the row count.
      */
 
-    public final int valueCount;
+    private final int valueCount;
+
+    public int getElementCount() {
+      return elementCount;
+    }
 
     /**
-     * Total number of elements for a repeated type, or 1 if this is
-     * a non-repeated type. That is, a batch of 100 rows may have an
-     * array with 10 elements per row. In this case, the element count
-     * is 1000.
+     * Total number of elements for a repeated type, or same as
+     * valueCount if this is a non-repeated type. That is, a batch
+     * of 100 rows may have an array with 10 elements per row.
+     * In this case, the element count is 1000.
      */
 
-    public final int elementCount;
+    private int elementCount;
 
-    /**
-     * Size of the top level value vector. For map and repeated list,
-     * this is just size of offset vector.
-     */
-    public int dataSize;
-
-    /**
-     * Total size of the column includes the sum total of memory for all
-     * value vectors representing the column.
-     */
-    public int netSize;
+    public float getEstElementCountPerArray() {
+      return estElementCountPerArray;
+    }
 
     /**
      * The estimated, average number of elements per parent value.
@@ -105,8 +172,19 @@ public class RecordBatchSizer {
      * this is the average entries per array (per repeated element).
      */
 
-    public final float estElementCountPerArray;
-    public final boolean isVariableWidth;
+    private float estElementCountPerArray;
+
+    public boolean isVariableWidth() {
+      boolean mapVariableWidth = this.isVariableWidth;
+      for (ColumnSize columnSize : children.values()) {
+        mapVariableWidth |= columnSize.isVariableWidth();
+      }
+      return mapVariableWidth;
+    }
+
+    private  boolean isVariableWidth;
+
+    private int totalRMNetSize, netRMSize;
 
     public Map<String, ColumnSize> children = CaseInsensitiveMap.newHashMap();
 
@@ -118,55 +196,105 @@ public class RecordBatchSizer {
       this.prefix = prefix;
       valueCount = v.getAccessor().getValueCount();
       metadata = v.getField();
-      isVariableWidth = v instanceof VariableWidthVector;
+      isVariableWidth = (v instanceof VariableWidthVector || v instanceof RepeatedVariableWidthVectorLike);
+
+      elementCount = valueCount;
+      estElementCountPerArray = 1;
+
+      try {
+        // For map, go through stdSizes of individual vectors and update.
+        stdDataSize = TypeHelper.getSize(metadata.getType());
+        if (isVariableWidth) {
+          stdNetSize = stdDataSize;
+          stdDataSize -= 4;
+        } else {
+          stdNetSize = stdDataSize;
+        }
+      } catch (Exception e) {
+        // For unsupported types, just set stdSize to 0.
+        stdDataSize = 0;
+      }
+
+      switch(v.getField().getDataMode()) {
+        case REPEATED:
+          elementCount  = getElementCount(v);
+          estElementCountPerArray = valueCount == 0 ? 0 : elementCount * 1.0f / valueCount;
+          stdDataSize *= estElementCountPerArray;
+          stdNetSize = stdDataSize + 4;
+
+          if (metadata.getType().getMinorType() == MinorType.MAP ||
+              metadata.getType().getMinorType() == MinorType.LIST) {
+
+            totalRMNetSize = v.getPayloadByteCount(valueCount);
+            netRMSize = safeDivide(totalRMNetSize, valueCount);
+
+            UInt4Vector offsetVector = ((RepeatedValueVector) v).getOffsetVector();
+
+            totalNetSize = offsetVector.getPayloadByteCount(valueCount);
+            netSize = safeDivide(totalNetSize, valueCount);
+            return;
+          }
+
+          if (isVariableWidth) {
+            UInt4Vector offsetVector = ((RepeatedValueVector) v).getOffsetVector();
+            int innerValueCount = offsetVector.getAccessor().get(valueCount);
+            VariableWidthVector variableWidthVector = ((VariableWidthVector) ((RepeatedValueVector) v).getDataVector());
+            totalDataSize = variableWidthVector.getOffsetVector().getAccessor().get(innerValueCount);
+            stdNetSize += 4;
+          } else {
+            ValueVector dataVector = ((RepeatedValueVector) v).getDataVector();
+            totalDataSize = dataVector.getPayloadByteCount(elementCount);
+          }
+
+          break;
+        case OPTIONAL:
+          stdNetSize += 1;
+
+          // TestMergeJoinWithSchemaChange test cases.
+          if (metadata.getType().getMinorType() == MinorType.UNION ||
+            metadata.getType().getMinorType() == MinorType.LIST) {
+            totalDataSize = v.getPayloadByteCount(valueCount);
+          } else {
+            if (isVariableWidth) {
+              VariableWidthVector variableWidthVector = ((VariableWidthVector) ((NullableVector) v).getValuesVector());
+              totalDataSize = variableWidthVector.getOffsetVector().getAccessor().get(valueCount);
+            } else {
+              if (v instanceof  NullableVector) {
+                totalDataSize = ((NullableVector) v).getValuesVector().getPayloadByteCount(valueCount);
+              }
+            }
+          }
+          break;
+
+        case REQUIRED:
+          if (metadata.getType().getMinorType() == MinorType.MAP) {
+            return;
+          }
+          if (isVariableWidth) {
+            UInt4Vector  offsetVector = ((VariableWidthVector)v).getOffsetVector();
+            totalDataSize = offsetVector.getAccessor().get(valueCount);
+          } else {
+            totalDataSize = v.getPayloadByteCount(valueCount);
+          }
+          break;
+      }
 
       // The amount of memory consumed by the payload: the actual
       // data stored in the vectors.
+      totalNetSize = v.getPayloadByteCount(valueCount);
+      netSize = (int) (safeDivide(totalNetSize, valueCount) * estElementCountPerArray);
 
-      if (v.getField().getDataMode() == DataMode.REPEATED) {
-        elementCount = buildRepeated(v);
-        estElementCountPerArray = valueCount == 0 ? 0 : elementCount * 1.0f / valueCount;
-      } else {
-        elementCount = 1;
-        estElementCountPerArray = 1;
-      }
-      switch (metadata.getType().getMinorType()) {
-      case LIST:
-        buildList(v);
-        break;
-      case MAP:
-      case UNION:
-        // No standard size for Union type
-        dataSize = v.getPayloadByteCount(valueCount);
-        break;
-      default:
-        dataSize = v.getPayloadByteCount(valueCount);
-        try {
-          stdSize = TypeHelper.getSize(metadata.getType()) * elementCount;
-        } catch (Exception e) {
-          // For unsupported types, just set stdSize to 0.
-          stdSize = 0;
-        }
-      }
-      estSize = safeDivide(dataSize, valueCount);
-      netSize = v.getPayloadByteCount(valueCount);
+      dataSize = safeDivide(totalDataSize, valueCount);
     }
 
     @SuppressWarnings("resource")
-    private int buildRepeated(ValueVector v) {
+    private int getElementCount(ValueVector v) {
 
       // Repeated vectors are special: they have an associated offset vector
       // that changes the value count of the contained vectors.
-
       UInt4Vector offsetVector = ((RepeatedValueVector) v).getOffsetVector();
       int childCount = valueCount == 0 ? 0 : offsetVector.getAccessor().get(valueCount);
-      if (metadata.getType().getMinorType() == MinorType.MAP) {
 
-        // For map, the only data associated with the map vector
-        // itself is the offset vector, if any.
-
-        dataSize = offsetVector.getPayloadByteCount(valueCount);
-      }
       return childCount;
     }
 
@@ -174,12 +302,14 @@ public class RecordBatchSizer {
     private void buildList(ValueVector v) {
       // complex ListVector cannot be casted to RepeatedListVector.
       // check the mode.
+
       if (v.getField().getDataMode() != DataMode.REPEATED) {
         dataSize = v.getPayloadByteCount(valueCount);
         return;
       }
       UInt4Vector offsetVector = ((RepeatedListVector) v).getOffsetVector();
       dataSize = offsetVector.getPayloadByteCount(valueCount);
+
     }
 
     @Override
@@ -200,11 +330,11 @@ public class RecordBatchSizer {
            .append(estElementCountPerArray);
       }
       buf .append(", std size: ")
-          .append(stdSize)
+          .append(stdDataSize)
           .append(", actual size: ")
-          .append(estSize)
+          .append(getNetSize())
           .append(", data size: ")
-          .append(dataSize)
+          .append(getDataSize())
           .append(")");
       return buf.toString();
     }
@@ -228,7 +358,7 @@ public class RecordBatchSizer {
       case VARCHAR:
 
         // Subtract out the offset vector width
-        width = estSize - 4;
+        width = getNetSize()- 4;
 
         // Subtract out the bits (is-set) vector width
         if (metadata.getDataMode() == DataMode.OPTIONAL) {
@@ -351,7 +481,20 @@ public class RecordBatchSizer {
   public RecordBatchSizer(VectorAccessible va, SelectionVector2 sv2) {
     rowCount = va.getRecordCount();
     for (VectorWrapper<?> vw : va) {
-      columnSizes.put(vw.getField().getName(), measureColumn(vw.getValueVector(), ""));
+      ColumnSize colSize = measureColumn(vw.getValueVector(), "");
+      columnSizes.put(vw.getField().getName(), colSize);
+
+      stdRowWidth += colSize.getStdDataSize();
+
+      int colSizeNet = colSize.getTotalNetSize();
+      int colSizePay = vw.getValueVector().getPayloadByteCount(rowCount);
+
+      netBatchSize += colSize.getTotalNetSize();
+      maxSize = Math.max(maxSize, colSize.getDataSize());
+      if (colSize.metadata.isNullable()) {
+        nullableCount++;
+      }
+      netRowWidth += colSize.getNetSize();
     }
 
     for (BufferLedger ledger : ledgers) {
@@ -405,16 +548,18 @@ public class RecordBatchSizer {
   private ColumnSize measureColumn(ValueVector v, String prefix) {
 
     ColumnSize colSize = new ColumnSize(v, prefix);
-    stdRowWidth += colSize.stdSize;
-    netBatchSize += colSize.dataSize;
-    maxSize = Math.max(maxSize, colSize.dataSize);
-    if (colSize.metadata.isNullable()) {
-      nullableCount++;
-    }
-
     // Maps consume no size themselves. However, their contained
     // vectors do consume space, so visit columns recursively.
 
+    /*
+    stdRowWidth += colSize.getStdDataSize();
+    netBatchSize += colSize.getTotalNetSize();
+    maxSize = Math.max(maxSize, colSize.getDataSize());
+    if (colSize.metadata.isNullable()) {
+      nullableCount++;
+    }
+    netRowWidth += colSize.getNetSize();
+*/
     switch (v.getField().getType().getMinorType()) {
       case MAP:
         expandMap(colSize, (AbstractMapVector) v, prefix + v.getField().getName() + ".");
@@ -423,16 +568,15 @@ public class RecordBatchSizer {
         // complex ListVector cannot be casted to RepeatedListVector.
         // do not expand the list if it is not repeated mode.
         if (v.getField().getDataMode() == DataMode.REPEATED) {
-          expandList((RepeatedListVector) v, prefix + v.getField().getName() + ".");
+          expandList(colSize, (RepeatedListVector) v, prefix + v.getField().getName() + ".");
         }
         break;
       default:
         v.collectLedgers(ledgers);
     }
 
-    netRowWidth += colSize.estSize;
-    netRowWidthCap50 += ! colSize.isVariableWidth ? colSize.estSize :
-        8 /* offset vector */ + roundUpToPowerOf2(Math.min(colSize.estSize,50));
+    netRowWidthCap50 += ! colSize.isVariableWidth ? colSize.getNetSize() :
+        8 /* offset vector */ + roundUpToPowerOf2(Math.min(colSize.getNetSize(),50));
         // above change 8 to 4 after DRILL-5446 is fixed
 
     return colSize;
@@ -451,8 +595,10 @@ public class RecordBatchSizer {
     }
   }
 
-  private void expandList(RepeatedListVector vector, String prefix) {
-    measureColumn(vector.getDataVector(), prefix);
+  private void expandList(ColumnSize colSize, RepeatedListVector vector, String prefix) {
+    colSize.children.put(vector.getField().getName(),
+      measureColumn(vector.getDataVector(), prefix));
+   // measureColumn(vector.getDataVector(), prefix);
 
     // Determine memory for the offset vector (only).
 
@@ -460,6 +606,13 @@ public class RecordBatchSizer {
   }
 
   public static int safeDivide(long num, long denom) {
+    if (denom == 0) {
+      return 0;
+    }
+    return (int) Math.ceil((double) num / denom);
+  }
+
+  public static int safeDivide(int num, int denom) {
     if (denom == 0) {
       return 0;
     }
