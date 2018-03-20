@@ -40,6 +40,7 @@ import org.apache.drill.exec.expr.TypeHelper;
 import org.apache.drill.exec.expr.ValueVectorReadExpression;
 import org.apache.drill.exec.expr.ValueVectorWriteExpression;
 import org.apache.drill.exec.ops.FragmentContext;
+import org.apache.drill.exec.ops.MetricDef;
 import org.apache.drill.exec.physical.config.FlattenPOP;
 import org.apache.drill.exec.record.RecordBatchSizer;
 import org.apache.drill.exec.record.AbstractSingleRecordBatch;
@@ -59,6 +60,7 @@ import org.apache.drill.exec.vector.complex.writer.BaseWriter.ComplexWriter;
 import com.carrotsearch.hppc.IntHashSet;
 import com.google.common.collect.Lists;
 import com.sun.codemodel.JExpr;
+
 
 // TODO - handle the case where a user tries to flatten a scalar, should just act as a project all of the columns exactly
 // as they come in
@@ -96,6 +98,17 @@ public class FlattenRecordBatch extends AbstractSingleRecordBatch<FlattenPOP> {
       }
 
       // note:  don't clear the internal maps since they have cumulative data..
+    }
+  }
+
+  public enum Metric implements MetricDef {
+    NUM_INCOMING_BATCHES,
+    AVERAGE_OUTPUT_BATCH_SIZE,
+    NUM_OUTGOING_BATCHES;
+
+    @Override
+    public int metricId() {
+      return ordinal();
     }
   }
 
@@ -144,6 +157,10 @@ public class FlattenRecordBatch extends AbstractSingleRecordBatch<FlattenPOP> {
 
     // get the output batch size from config.
     outputBatchSize = (int) context.getOptions().getOption(ExecConstants.OUTPUT_BATCH_SIZE_VALIDATOR);
+
+    stats.setLongStat(Metric.AVERAGE_OUTPUT_BATCH_SIZE, outputBatchSize);
+
+
   }
 
   @Override

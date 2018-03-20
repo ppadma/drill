@@ -44,6 +44,7 @@ import org.apache.drill.exec.expr.CodeGenerator;
 import org.apache.drill.exec.expr.ExpressionTreeMaterializer;
 import org.apache.drill.exec.expr.fn.FunctionGenerationHelper;
 import org.apache.drill.exec.ops.FragmentContext;
+import org.apache.drill.exec.ops.MetricDef;
 import org.apache.drill.exec.physical.config.MergeJoinPOP;
 import org.apache.drill.exec.physical.impl.common.Comparator;
 import org.apache.drill.exec.record.RecordBatchSizer;
@@ -108,6 +109,17 @@ public class MergeJoinBatch extends AbstractRecordBatch<MergeJoinPOP> {
 
   private static final String LEFT_INPUT = "LEFT INPUT";
   private static final String RIGHT_INPUT = "RIGHT INPUT";
+
+  public enum Metric implements MetricDef {
+
+    AVG_OUTPUT_BATCH_SIZE,
+    NUM_OUTPUT_BATCHES;
+
+    @Override
+    public int metricId() {
+      return ordinal();
+    }
+  }
 
   private class MergeJoinMemoryManager extends AbstractRecordBatchMemoryManager {
     private int leftRowWidth;
