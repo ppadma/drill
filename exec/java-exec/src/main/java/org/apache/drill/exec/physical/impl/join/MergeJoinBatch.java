@@ -130,10 +130,12 @@ public class MergeJoinBatch extends AbstractRecordBatch<MergeJoinPOP> {
         case 0:
           leftSizer = new RecordBatchSizer(left);
           leftRowWidth = leftSizer.netRowWidth();
+          logger.debug("MergeJoin left incoming batch sizer : {}", getRecordBatchSizer());
           break;
         case 1:
           rightSizer = new RecordBatchSizer(right);
           rightRowWidth = rightSizer.netRowWidth();
+          logger.debug("MergeJoin right incoming batch sizer : {}", getRecordBatchSizer());
         default:
           break;
       }
@@ -153,12 +155,15 @@ public class MergeJoinBatch extends AbstractRecordBatch<MergeJoinPOP> {
       // calculate memory used so far based on previous outgoing row width and how many rows we already processed.
       final long memoryUsed = status.getOutPosition() * getOutgoingRowWidth();
       // This is the remaining memory.
-      final long remainingMemory = Math.max(outputBatchSize/WORST_CASE_FRAGMENTATION_FACTOR - memoryUsed, 0);
+      final long remainingMemory = Math.max(outputBatchSize - memoryUsed, 0);
       // These are number of rows we can fit in remaining memory based on new outgoing row width.
       final int numOutputRowsRemaining = RecordBatchSizer.safeDivide(remainingMemory, newOutgoingRowWidth);
 
       status.setTargetOutputRowCount(status.getOutPosition() + numOutputRowsRemaining);
       setOutgoingRowWidth(newOutgoingRowWidth);
+
+      logger.debug("outputBatchSize : {}, avgOutgoingRowWidth : {}, outputRowCount : {}",
+        outputBatchSize, getOutgoingRowWidth(), getOutputRowCount());
     }
 
     @Override

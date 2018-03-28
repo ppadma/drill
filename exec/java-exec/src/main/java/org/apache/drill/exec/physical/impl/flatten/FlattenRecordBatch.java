@@ -133,9 +133,11 @@ public class FlattenRecordBatch extends AbstractSingleRecordBatch<FlattenPOP> {
       // i.e. all rows fit within memory budget.
       setOutputRowCount(Math.min(columnSize.getElementCount(), getOutputRowCount()));
 
-      logger.debug("flatten incoming batch sizer : {}, outputBatchSize : {}," +
-        "avgOutgoingRowWidth : {}, outputRowCount : {}", getRecordBatchSizer(), outputBatchSize,
-        avgOutgoingRowWidth, getOutputRowCount());
+      logger.debug("flatten incoming batch sizer : {}", getRecordBatchSizer());
+
+      logger.debug("outputBatchSize : {}, avgOutgoingRowWidth : {}, outputRowCount : {}",
+        outputBatchSize, avgOutgoingRowWidth, getOutputRowCount());
+
     }
   }
 
