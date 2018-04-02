@@ -314,7 +314,7 @@ public class ProjectRecordBatch extends AbstractSingleRecordBatch<Project> {
   }
 
   private boolean isWildcard(final NamedExpression ex) {
-    if ( !(ex.getExpr() instanceof SchemaPath)) {
+    if (!(ex.getExpr() instanceof SchemaPath)) {
       return false;
     }
     final NameSegment expr = ((SchemaPath)ex.getExpr()).getRootSegment();
@@ -332,6 +332,7 @@ public class ProjectRecordBatch extends AbstractSingleRecordBatch<Project> {
     if (complexWriters != null) {
       container.clear();
     } else {
+      // Release the underlying DrillBufs and reset the ValueVectors to empty
       // Not clearing the container here is fine since Project output schema is not determined solely based on incoming
       // batch. It is defined by the expressions it has to evaluate.
       //
@@ -347,7 +348,7 @@ public class ProjectRecordBatch extends AbstractSingleRecordBatch<Project> {
     final ClassGenerator<Projector> cg = CodeGenerator.getRoot(Projector.TEMPLATE_DEFINITION, context.getOptions());
     cg.getCodeGenerator().plainJavaCapable(true);
     // Uncomment out this line to debug the generated code.
-     cg.getCodeGenerator().saveCodeForDebugging(true);
+    cg.getCodeGenerator().saveCodeForDebugging(true);
 
     final IntHashSet transferFieldIds = new IntHashSet();
 
@@ -358,7 +359,7 @@ public class ProjectRecordBatch extends AbstractSingleRecordBatch<Project> {
 
     for (NamedExpression namedExpression : exprs) {
       result.clear();
-
+      String outputName = getRef(namedExpression).getRootSegment().getPath();
       if (classify && namedExpression.getExpr() instanceof SchemaPath) {
         classifyExpr(namedExpression, incomingBatch, result);
 
@@ -423,11 +424,10 @@ public class ProjectRecordBatch extends AbstractSingleRecordBatch<Project> {
         // For the columns which do not needed to be classified,
         // it is still necessary to ensure the output column name is unique
         result.outputNames = Lists.newArrayList();
-        final String outputName = getRef(namedExpression).getRootSegment().getPath();
+//        final String outputName = getRef(namedExpression).getRootSegment().getPath(); //moved to before the if
         addToResultMaps(outputName, result, true);
       }
-
-      String outputName = getRef(namedExpression).getRootSegment().getPath();
+      //    moved to before the if. String outputName = getRef(namedExpression).getRootSegment().getPath();
       if (result != null && result.outputNames != null && result.outputNames.size() > 0) {
         boolean isMatched = false;
         for (int j = 0; j < result.outputNames.size(); j++) {
@@ -437,7 +437,6 @@ public class ProjectRecordBatch extends AbstractSingleRecordBatch<Project> {
             break;
           }
         }
-
         if (!isMatched) {
           continue;
         }
@@ -447,11 +446,13 @@ public class ProjectRecordBatch extends AbstractSingleRecordBatch<Project> {
           collector, context.getFunctionRegistry(), true, unionTypeEnabled);
       final MaterializedField outputField = MaterializedField.create(outputName, expr.getMajorType());
       if (collector.hasErrors()) {
-        throw new SchemaChangeException(String.format("Failure while trying to materialize incoming schema.  Errors:\n %s.", collector.toErrorString()));
+        throw new SchemaChangeException(String.format("Failure while trying to materialize incoming schema.  Errors:\n %s.",
+                collector.toErrorString()));
       }
 
       // add value vector to transfer if direct reference and this is allowed, otherwise, add to evaluation stack.
-      if (expr instanceof ValueVectorReadExpression && incomingBatch.getSchema().getSelectionVectorMode() == SelectionVectorMode.NONE
+      if (expr instanceof ValueVectorReadExpression
+          && incomingBatch.getSchema().getSelectionVectorMode() == SelectionVectorMode.NONE
           && !((ValueVectorReadExpression) expr).hasReadPath()
           && !isAnyWildcard
           && !transferFieldIds.contains(((ValueVectorReadExpression) expr).getFieldId().getFieldIds()[0])) {
@@ -503,7 +504,8 @@ public class ProjectRecordBatch extends AbstractSingleRecordBatch<Project> {
           final ValueVectorReadExpression vectorRead = (ValueVectorReadExpression) expr;
           if (!vectorRead.hasReadPath()) {
             final TypedFieldId id = vectorRead.getFieldId();
-            final ValueVector vvIn = incomingBatch.getValueAccessorById(id.getIntermediateClass(), id.getFieldIds()).getValueVector();
+            final ValueVector vvIn = incomingBatch.getValueAccessorById(id.getIntermediateClass(),
+                    id.getFieldIds()).getValueVector();
             vvIn.makeTransferPair(vector);
           }
         }
@@ -521,6 +523,85 @@ public class ProjectRecordBatch extends AbstractSingleRecordBatch<Project> {
     } catch (ClassTransformationException | IOException e) {
       throw new SchemaChangeException("Failure while attempting to load generated class", e);
     }
+  }
+
+  private void setupTransferPair(RecordBatch incomingBatch, List<TransferPair> transfers, IntHashSet transferFieldIds,
+                                 NamedExpression namedExpression, ValueVectorReadExpression expr) {
+    final ValueVectorReadExpression vectorRead = expr;
+    final TypedFieldId id = vectorRead.getFieldId();
+    final ValueVector vvIn = incomingBatch.getValueAccessorById(id.getIntermediateClass(), id.getFieldIds()).getValueVector();
+    Preconditions.checkNotNull(incomingBatch);
+
+    final FieldReference ref = getRef(namedExpression);
+    final ValueVector vvOut = container.addOrGet(MaterializedField.create(ref.getLastSegment().getNameSegment().getPath(),
+                                                                          vectorRead.getMajorType()), callBack);
+    final TransferPair tp = vvIn.makeTransferPair(vvOut);
+    transfers.add(tp);
+    transferFieldIds.add(vectorRead.getFieldId().getFieldIds()[0]);
+  }
+
+  private boolean handleWildCardExpressions(RecordBatch incomingBatch, ErrorCollector collector, List<TransferPair> transfers,
+                                            ClassGenerator<Projector> cg, ClassifierResult result) throws SchemaChangeException {
+    if (result.isStar) {
+      // The value indicates which wildcard we are processing now
+      final Integer value = result.prefixMap.get(result.prefix);
+      if (value != null && value == 1) {
+        int k = 0;
+        for (final VectorWrapper<?> wrapper : incomingBatch) {
+          final ValueVector vvIn = wrapper.getValueVector();
+          if (k > result.outputNames.size() - 1) {
+            assert false;
+          }
+          final String name = result.outputNames.get(k++);  // get the renamed column names
+          if (name.isEmpty()) {
+            continue;
+          }
+
+          if (isImplicitFileColumn(vvIn)) {
+            continue;
+          }
+
+          final FieldReference ref = new FieldReference(name);
+          final ValueVector vvOut = container.addOrGet(MaterializedField.create(ref.getAsNamePart().getName(),
+                  vvIn.getField().getType()), callBack);
+          final TransferPair tp = vvIn.makeTransferPair(vvOut);
+          transfers.add(tp);
+        }
+      } else if (value != null && value > 1) { // subsequent wildcards should do a copy of incoming valuevectors
+        int k = 0;
+        for (final VectorWrapper<?> wrapper : incomingBatch) {
+          final ValueVector vvIn = wrapper.getValueVector();
+          final SchemaPath originalPath = SchemaPath.getSimplePath(vvIn.getField().getName());
+          if (k > result.outputNames.size() - 1) {
+            assert false;
+          }
+          final String name = result.outputNames.get(k++);  // get the renamed column names
+          if (name.isEmpty()) {
+            continue;
+          }
+
+          if (isImplicitFileColumn(vvIn)) {
+            continue;
+          }
+
+          final LogicalExpression expr = ExpressionTreeMaterializer.materialize(originalPath, incomingBatch, collector,
+                  context.getFunctionRegistry() );
+          if (collector.hasErrors()) {
+            throw new SchemaChangeException(String.format("Failure while trying to materialize incomingBatch schema.  " +
+                    "Errors:\n %s.", collector.toErrorString()));
+          }
+
+          final MaterializedField outputField = MaterializedField.create(name, expr.getMajorType());
+          final ValueVector vv = container.addOrGet(outputField, callBack);
+          allocationVectors.add(vv);
+          final TypedFieldId fid = container.getValueVectorId(SchemaPath.getSimplePath(outputField.getName()));
+          final ValueVectorWriteExpression write = new ValueVectorWriteExpression(fid, expr, true);
+          final HoldingContainer hc = cg.addExpr(write, ClassGenerator.BlkCreateMode.TRUE_IF_BOUND);
+        }
+      }
+      return true;
+    }
+    return false;
   }
 
   @Override
