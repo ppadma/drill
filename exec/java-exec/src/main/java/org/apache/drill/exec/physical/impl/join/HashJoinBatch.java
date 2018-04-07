@@ -54,6 +54,8 @@ import org.apache.drill.exec.record.BatchSchema.SelectionVectorMode;
 import org.apache.drill.exec.record.ExpandableHyperContainer;
 import org.apache.drill.exec.record.MaterializedField;
 import org.apache.drill.exec.record.RecordBatch;
+import org.apache.drill.exec.record.RecordBatchMemoryManager;
+import org.apache.drill.exec.record.RecordBatchSizer;
 import org.apache.drill.exec.record.TypedFieldId;
 import org.apache.drill.exec.record.VectorContainer;
 import org.apache.drill.exec.record.VectorWrapper;
@@ -66,8 +68,8 @@ import com.sun.codemodel.JExpression;
 import com.sun.codemodel.JVar;
 
 public class HashJoinBatch extends AbstractBinaryRecordBatch<HashJoinPOP> {
-  public static final long ALLOCATOR_INITIAL_RESERVATION = 1 * 1024 * 1024;
-  public static final long ALLOCATOR_MAX_RESERVATION = 20L * 1000 * 1000 * 1000;
+
+  private static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(HashJoinBatch.class);
 
   // Join type, INNER, LEFT, RIGHT or OUTER
   private final JoinRelType joinType;
@@ -105,6 +107,17 @@ public class HashJoinBatch extends AbstractBinaryRecordBatch<HashJoinPOP> {
   // Schema of the build side
   private BatchSchema rightSchema = null;
 
+  private static final int numInputs = 2;
+  private static final int LEFT_INDEX = 0;
+  private static final int RIGHT_INDEX = 1;
+
+  private final int outputBatchSize;
+
+  private final HashJoinMemoryManager hashJoinMemoryManager = new HashJoinBatch.HashJoinMemoryManager();
+
+  public HashJoinMemoryManager getHashJoinMemoryManager() {
+    return hashJoinMemoryManager;
+  }
 
   // Generator mapping for the build side
   // Generator mapping for the build side : scalar
@@ -147,13 +160,58 @@ public class HashJoinBatch extends AbstractBinaryRecordBatch<HashJoinPOP> {
     NUM_BUCKETS,
     NUM_ENTRIES,
     NUM_RESIZING,
-    RESIZING_TIME_MS;
+    RESIZING_TIME_MS,
+    LEFT_INPUT_BATCH_COUNT,
+    LEFT_AVG_INPUT_BATCH_BYTES,
+    LEFT_AVG_INPUT_ROW_BYTES,
+    LEFT_INPUT_RECORD_COUNT,
+    RIGHT_INPUT_BATCH_COUNT,
+    RIGHT_AVG_INPUT_BATCH_BYTES,
+    RIGHT_AVG_INPUT_ROW_BYTES,
+    RIGHT_INPUT_RECORD_COUNT,
+    OUTPUT_BATCH_COUNT,
+    AVG_OUTPUT_BATCH_BYTES,
+    AVG_OUTPUT_ROW_BYTES,
+    OUTPUT_RECORD_COUNT;
 
     // duplicate for hash ag
 
     @Override
     public int metricId() {
       return ordinal();
+    }
+  }
+
+  public class HashJoinMemoryManager extends RecordBatchMemoryManager {
+    private int probeRowWidth;
+
+    public HashJoinMemoryManager() {
+      super(numInputs);
+    }
+
+    public void updateBuild() {
+      setRecordBatchSizer(RIGHT_INDEX, new RecordBatchSizer(right));
+    }
+
+    public void updateProbe() {
+      setRecordBatchSizer(LEFT_INDEX, new RecordBatchSizer(left));
+      probeRowWidth = getRecordBatchSizer(LEFT_INDEX).netRowWidth();
+
+      final int newOutgoingRowWidth = probeRowWidth + (int)getAvgInputRowWidth(RIGHT_INDEX);
+      // update the value to be used for next batch(es)
+      setOutputRowCount(outputBatchSize, newOutgoingRowWidth);
+      setOutgoingRowWidth(newOutgoingRowWidth);
+
+      // Adjust for the current batch.
+      // calculate memory used so far based on previous outgoing row width and how many rows we already processed.
+      final long memoryUsed = hashJoinProbe.getOutputCount() * getOutgoingRowWidth();
+      // This is the remaining memory.
+      final long remainingMemory = Math.max(outputBatchSize - memoryUsed, 0);
+      // These are number of rows we can fit in remaining memory based on new outgoing row width.
+      final int numOutputRowsRemaining = RecordBatchSizer.safeDivide(remainingMemory, newOutgoingRowWidth);
+
+      hashJoinProbe.setOutputCount(Math.max(adjustOutputRowCount(hashJoinProbe.getOutputCount() + numOutputRowsRemaining), hashJoinProbe.getOutputCount()));
+
     }
   }
 
@@ -185,14 +243,22 @@ public class HashJoinBatch extends AbstractBinaryRecordBatch<HashJoinPOP> {
         setupHashTable();
       }
       hashJoinProbe = setupHashJoinProbe();
-      // Build the container schema and set the counts
-      for (final VectorWrapper<?> w : container) {
-        w.getValueVector().allocateNew();
-      }
+
+      hashJoinMemoryManager.updateBuild();
+      hashJoinMemoryManager.updateProbe();
+
+      hashJoinProbe.setOutputCount(hashJoinMemoryManager.getOutputRowCount());
+
       container.buildSchema(BatchSchema.SelectionVectorMode.NONE);
       container.setRecordCount(outputRecords);
     } catch (IOException | ClassTransformationException e) {
       throw new SchemaChangeException(e);
+    }
+  }
+
+  private void allocateVectors() {
+    for (final VectorWrapper<?> v : container) {
+      v.getValueVector().allocateNew();
     }
   }
 
@@ -213,10 +279,9 @@ public class HashJoinBatch extends AbstractBinaryRecordBatch<HashJoinPOP> {
 
       // Store the number of records projected
       if ((hashTable != null && !hashTable.isEmpty()) || joinType != JoinRelType.INNER) {
-
-        // Allocate the memory for the vectors in the output container
+        // Build the container schema and set the counts
+       // hashJoinMemoryManager.allocateVectors(container, hashJoinMemoryManager.getOutputRowCount());
         allocateVectors();
-
         outputRecords = hashJoinProbe.probeAndProject();
 
         /* We are here because of one the following
@@ -300,13 +365,13 @@ public class HashJoinBatch extends AbstractBinaryRecordBatch<HashJoinPOP> {
 
   public void executeBuildPhase() throws SchemaChangeException, ClassTransformationException, IOException {
     //Setup the underlying hash table
-
     // skip first batch if count is zero, as it may be an empty schema batch
     if (isFurtherProcessingRequired(rightUpstream) && right.getRecordCount() == 0) {
       for (final VectorWrapper<?> w : right) {
         w.clear();
       }
       rightUpstream = next(right);
+      hashJoinMemoryManager.updateBuild();
       if (isFurtherProcessingRequired(rightUpstream) &&
           right.getRecordCount() > 0 && hashTable == null) {
         setupHashTable();
@@ -346,6 +411,7 @@ public class HashJoinBatch extends AbstractBinaryRecordBatch<HashJoinPOP> {
         }
         // Fall through
       case OK:
+        hashJoinMemoryManager.updateBuild();
         final int currentRecordCount = right.getRecordCount();
 
                     /* For every new build batch, we store some state in the helper context
@@ -400,6 +466,7 @@ public class HashJoinBatch extends AbstractBinaryRecordBatch<HashJoinPOP> {
   public HashJoinProbe setupHashJoinProbe() throws ClassTransformationException, IOException {
     final CodeGenerator<HashJoinProbe> cg = CodeGenerator.get(HashJoinProbe.TEMPLATE_DEFINITION, context.getOptions());
     cg.plainJavaCapable(true);
+    // cg.saveCodeForDebugging(true);
     final ClassGenerator<HashJoinProbe> g = cg.getRoot();
 
     // Generate the code to project build side records
@@ -480,12 +547,6 @@ public class HashJoinBatch extends AbstractBinaryRecordBatch<HashJoinPOP> {
     return hj;
   }
 
-  private void allocateVectors() {
-    for (final VectorWrapper<?> v : container) {
-      v.getValueVector().allocateNew();
-    }
-  }
-
   public HashJoinBatch(HashJoinPOP popConfig, FragmentContext context,
       RecordBatch left, /*Probe side record batch*/
       RecordBatch right /*Build side record batch*/
@@ -499,6 +560,9 @@ public class HashJoinBatch extends AbstractBinaryRecordBatch<HashJoinPOP> {
       JoinCondition cond = conditions.get(i);
       comparators.add(JoinUtils.checkAndReturnSupportedJoinComparator(cond));
     }
+
+    outputBatchSize = (int) context.getOptions().getOption(ExecConstants.OUTPUT_BATCH_SIZE_VALIDATOR);
+
   }
 
   private void updateStats(HashTable htable) {
@@ -532,7 +596,38 @@ public class HashJoinBatch extends AbstractBinaryRecordBatch<HashJoinPOP> {
     if (hashTable != null) {
       hashTable.clear();
     }
+
+    updateStats();
     super.close();
+  }
+
+  private void updateStats() {
+    stats.setLongStat(HashJoinBatch.Metric.LEFT_INPUT_BATCH_COUNT, hashJoinMemoryManager.getNumIncomingBatches(LEFT_INDEX));
+    stats.setLongStat(HashJoinBatch.Metric.LEFT_AVG_INPUT_BATCH_BYTES, hashJoinMemoryManager.getAvgInputBatchSize(LEFT_INDEX));
+    stats.setLongStat(HashJoinBatch.Metric.LEFT_AVG_INPUT_ROW_BYTES, hashJoinMemoryManager.getAvgInputRowWidth(LEFT_INDEX));
+    stats.setLongStat(HashJoinBatch.Metric.LEFT_INPUT_RECORD_COUNT, hashJoinMemoryManager.getTotalInputRecords(LEFT_INDEX));
+
+    stats.setLongStat(HashJoinBatch.Metric.RIGHT_INPUT_BATCH_COUNT, hashJoinMemoryManager.getNumIncomingBatches(RIGHT_INDEX));
+    stats.setLongStat(HashJoinBatch.Metric.RIGHT_AVG_INPUT_BATCH_BYTES, hashJoinMemoryManager.getAvgInputBatchSize(RIGHT_INDEX));
+    stats.setLongStat(HashJoinBatch.Metric.RIGHT_AVG_INPUT_ROW_BYTES, hashJoinMemoryManager.getAvgInputRowWidth(RIGHT_INDEX));
+    stats.setLongStat(HashJoinBatch.Metric.RIGHT_INPUT_RECORD_COUNT, hashJoinMemoryManager.getTotalInputRecords(RIGHT_INDEX));
+
+    stats.setLongStat(HashJoinBatch.Metric.OUTPUT_BATCH_COUNT, hashJoinMemoryManager.getNumOutgoingBatches());
+    stats.setLongStat(HashJoinBatch.Metric.AVG_OUTPUT_BATCH_BYTES, hashJoinMemoryManager.getAvgOutputBatchSize());
+    stats.setLongStat(HashJoinBatch.Metric.AVG_OUTPUT_ROW_BYTES, hashJoinMemoryManager.getAvgOutputRowWidth());
+    stats.setLongStat(HashJoinBatch.Metric.OUTPUT_RECORD_COUNT, hashJoinMemoryManager.getTotalOutputRecords());
+
+    logger.debug("left input: batch count : {}, avg batch bytes : {},  avg row bytes : {}, record count : {}",
+      hashJoinMemoryManager.getNumIncomingBatches(LEFT_INDEX), hashJoinMemoryManager.getAvgInputBatchSize(LEFT_INDEX),
+      hashJoinMemoryManager.getAvgInputRowWidth(LEFT_INDEX), hashJoinMemoryManager.getTotalInputRecords(LEFT_INDEX));
+
+    logger.debug("right input: batch count : {}, avg batch bytes : {},  avg row bytes : {}, record count : {}",
+      hashJoinMemoryManager.getNumIncomingBatches(RIGHT_INDEX), hashJoinMemoryManager.getAvgInputBatchSize(RIGHT_INDEX),
+      hashJoinMemoryManager.getAvgInputRowWidth(RIGHT_INDEX), hashJoinMemoryManager.getTotalInputRecords(RIGHT_INDEX));
+
+    logger.debug("output: batch count : {}, avg batch bytes : {},  avg row bytes : {}, record count : {}",
+      hashJoinMemoryManager.getNumOutgoingBatches(), hashJoinMemoryManager.getAvgOutputBatchSize(),
+      hashJoinMemoryManager.getAvgOutputRowWidth(), hashJoinMemoryManager.getTotalOutputRecords());
   }
 
   /**

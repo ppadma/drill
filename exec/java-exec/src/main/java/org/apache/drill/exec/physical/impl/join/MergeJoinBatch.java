@@ -166,7 +166,7 @@ public class MergeJoinBatch extends AbstractRecordBatch<MergeJoinPOP> {
           break;
       }
 
-      updateIncomingStats(inputIndex);
+     // updateIncomingStats(inputIndex);
       final int newOutgoingRowWidth = leftRowWidth + rightRowWidth;
 
       // If outgoing row width is 0, just return. This is possible for empty batches or
