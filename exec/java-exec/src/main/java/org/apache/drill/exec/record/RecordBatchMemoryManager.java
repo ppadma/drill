@@ -180,12 +180,17 @@ public class RecordBatchMemoryManager {
   public void setRecordBatchSizer(int index, RecordBatchSizer sizer) {
     Preconditions.checkArgument(index >= 0 && index < numInputs);
     this.sizer[index] = sizer;
-    inputBatchStats[index] = new BatchStats();
+    if (inputBatchStats[index] == null) {
+      inputBatchStats[index] = new BatchStats();
+    }
+    updateIncomingStats(index);
   }
 
   public void setRecordBatchSizer(RecordBatchSizer sizer) {
     this.sizer[DEFAULT_INPUT_INDEX] = sizer;
-    inputBatchStats[DEFAULT_INPUT_INDEX] = new BatchStats();
+    if (inputBatchStats[DEFAULT_INPUT_INDEX] == null) {
+      inputBatchStats[DEFAULT_INPUT_INDEX] = new BatchStats();
+    }
   }
 
   public RecordBatchSizer getRecordBatchSizer(int index) {
