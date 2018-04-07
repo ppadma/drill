@@ -51,4 +51,9 @@ public interface HashJoinProbe {
   int  probeAndProject() throws SchemaChangeException, ClassTransformationException, IOException;
   void projectBuildRecord(int buildIndex, int outIndex);
   void projectProbeRecord(int probeIndex, int outIndex);
+
+  void setOutputCount(int outputCount);
+
+  int getOutputCount();
+
 }
