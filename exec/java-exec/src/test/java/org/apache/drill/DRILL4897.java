@@ -43,7 +43,7 @@ public class DRILL4897 extends DrillTest {
         LogFixture.LogFixtureBuilder logBuilder = LogFixture.builder()
                 .logger("org.apache.drill", Level.TRACE).toConsole();
 
-        try (//LogFixture logs = logBuilder.build();
+        try (LogFixture logs = logBuilder.build();
              ClusterFixture cluster = ClusterFixture.builder(dirTestWatcher)
                      .configProperty(ClassBuilder.CODE_DIR_OPTION, GENERATED_SOURCES_DIR)
                      .configProperty(ExecConstants.BIT_RPC_TIMEOUT, 0)
@@ -61,9 +61,13 @@ public class DRILL4897 extends DrillTest {
 //                    "                   from cp.`employee.json` ";
             //employee_id<BIGINT(OPTIONAL)>,full_name<VARCHAR(OPTIONAL)>,first_name<VARCHAR(OPTIONAL)>,last_name<VARCHAR(OPTIONAL)>,position_id<BIGINT(OPTIONAL)>,position_title<VARCHAR(OPTIONAL)>,store_id<BIGINT(OPTIONAL)>,department_id<BIGINT(OPTIONAL)>,birth_date<VARCHAR(OPTIONAL)>,hire_date<VARCHAR(OPTIONAL)>,salary<FLOAT8(OPTIONAL)>,supervisor_id<BIGINT(OPTIONAL)>,education_level<VARCHAR(OPTIONAL)>,marital_status<VARCHAR(OPTIONAL)>,gender<VARCHAR(OPTIONAL)>,management_role<VARCHAR(OPTIONAL)>
             //1,Sheri Nowmer,Sheri,Nowmer,1,President,0,1,1961-08-26,1994-12-01 00:00:00.0,80000.0,0,Graduate Degree,S,F,Senior Management
-            String sql = "SELECT employee_id * 10000 + position_id as eidpluspid " +
-                         ", UPPER(CONCAT(first_name, '-', last_name)) as upper_name " +
-                         " from cp.`employee.json` ";
+//            String sql = "SELECT MAX(employee_id) as max_id " +
+//                         " from cp.`employee.json` ";
+            String sql = "SELECT UPPER(CONCAT(first_name, '##')) as upper_name " +
+                    " from cp.`employee.json` ";
+
+//            String sql = "SELECT employee_id + position_id as eidpluspid " +
+//                            " from cp.`employee.json` ";
             //String sql = "select  from cp.`employee.json` limit 1 ";
             client.queryBuilder().sql(sql).printCsv();
         }
