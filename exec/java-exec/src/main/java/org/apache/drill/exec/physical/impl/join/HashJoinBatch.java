@@ -115,7 +115,7 @@ public class HashJoinBatch extends AbstractBinaryRecordBatch<HashJoinPOP> {
 
   private final HashJoinMemoryManager hashJoinMemoryManager = new HashJoinBatch.HashJoinMemoryManager();
 
-  public HashJoinMemoryManager getHashJoinMemoryManager() {
+  private HashJoinMemoryManager getHashJoinMemoryManager() {
     return hashJoinMemoryManager;
   }
 
@@ -256,6 +256,12 @@ public class HashJoinBatch extends AbstractBinaryRecordBatch<HashJoinPOP> {
     }
   }
 
+  private void allocateVectors() {
+    for (final VectorWrapper<?> v : container) {
+      v.getValueVector().allocateNew();
+    }
+  }
+
   @Override
   public IterOutcome innerNext() {
     try {
@@ -274,7 +280,8 @@ public class HashJoinBatch extends AbstractBinaryRecordBatch<HashJoinPOP> {
       // Store the number of records projected
       if ((hashTable != null && !hashTable.isEmpty()) || joinType != JoinRelType.INNER) {
         // Build the container schema and set the counts
-        hashJoinMemoryManager.allocateVectors(container, hashJoinMemoryManager.getOutputRowCount());
+       // hashJoinMemoryManager.allocateVectors(container, hashJoinMemoryManager.getOutputRowCount());
+        allocateVectors();
         outputRecords = hashJoinProbe.probeAndProject();
 
         /* We are here because of one the following
