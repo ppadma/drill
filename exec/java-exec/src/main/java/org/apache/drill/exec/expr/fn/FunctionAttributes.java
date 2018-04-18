@@ -54,6 +54,10 @@ public class FunctionAttributes {
     return template.returnType();
   }
 
+  public FunctionTemplate.OutputSizeEstimate getOutputSizeEstimate() {
+    return template.outputSizeEstimate();
+  }
+
   public NullHandling getNullHandling() {
     return template.nulls();
   }

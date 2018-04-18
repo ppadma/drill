@@ -43,7 +43,7 @@ public class DRILL4897 extends DrillTest {
         LogFixture.LogFixtureBuilder logBuilder = LogFixture.builder()
                 .logger("org.apache.drill", Level.TRACE).toConsole();
 
-        try (LogFixture logs = logBuilder.build();
+        try (//LogFixture logs = logBuilder.build();
              ClusterFixture cluster = ClusterFixture.builder(dirTestWatcher)
                      .configProperty(ClassBuilder.CODE_DIR_OPTION, GENERATED_SOURCES_DIR)
                      .configProperty(ExecConstants.BIT_RPC_TIMEOUT, 0)
@@ -55,7 +55,9 @@ public class DRILL4897 extends DrillTest {
              ClientFixture client = cluster.clientFixture()) {
             cluster.defineWorkspace("dfs", "data", "/Users/karthik/work/bugs/DRILL-4897", "csv");
             //String sql = "select CAST(case isnumeric(columns[0]) WHEN 0 THEN 2147483647 ELSE columns[0] END AS BIGINT) from `dfs.data`.`pw2.csv` ";
-  //          String sql= "select convert_from(convert_to(rl[1], 'JSON'), 'JSON') list_col from cp.`store/json/input2.json`";
+            //String sql = "select * from cp.`store/json/input2.json`";
+            String sql= "select convert_to(rl[1], 'JSON') list_col from cp.`store/json/input2.json`";
+//            String sql= "select convert_from(convert_to(rl[1], 'JSON'), 'JSON') list_col from cp.`store/json/input2.json`";
 //            String sql = "select employee_id as eid " +
 //                    "                          , employee_id + position_id as eidpluspid " +
 //                    "                   from cp.`employee.json` ";
@@ -63,8 +65,8 @@ public class DRILL4897 extends DrillTest {
             //1,Sheri Nowmer,Sheri,Nowmer,1,President,0,1,1961-08-26,1994-12-01 00:00:00.0,80000.0,0,Graduate Degree,S,F,Senior Management
 //            String sql = "SELECT MAX(employee_id) as max_id " +
 //                         " from cp.`employee.json` ";
-            String sql = "SELECT UPPER(CONCAT(first_name, '##')) as upper_name " +
-                    " from cp.`employee.json` ";
+//            String sql = "SELECT UPPER(CONCAT(first_name, '##')) as upper_name " +
+//                    " from cp.`employee.json` ";
 
 //            String sql = "SELECT employee_id + position_id as eidpluspid " +
 //                            " from cp.`employee.json` ";

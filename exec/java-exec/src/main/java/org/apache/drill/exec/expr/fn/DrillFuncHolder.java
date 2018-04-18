@@ -17,9 +17,12 @@
  */
 package org.apache.drill.exec.expr.fn;
 
-import java.util.Arrays;
-import java.util.List;
-
+import com.google.common.base.Preconditions;
+import com.google.common.base.Strings;
+import com.sun.codemodel.JBlock;
+import com.sun.codemodel.JExpr;
+import com.sun.codemodel.JType;
+import com.sun.codemodel.JVar;
 import org.apache.drill.common.exceptions.DrillRuntimeException;
 import org.apache.drill.common.exceptions.UserException;
 import org.apache.drill.common.expression.ExpressionPosition;
@@ -37,14 +40,12 @@ import org.apache.drill.exec.expr.DrillFuncHolderExpr;
 import org.apache.drill.exec.expr.TypeHelper;
 import org.apache.drill.exec.expr.annotations.FunctionTemplate.NullHandling;
 import org.apache.drill.exec.ops.UdfUtilities;
+import org.apache.drill.exec.record.RecordBatch;
+import org.apache.drill.exec.record.RecordBatchSizer;
 import org.apache.drill.exec.vector.complex.reader.FieldReader;
 
-import com.google.common.base.Preconditions;
-import com.google.common.base.Strings;
-import com.sun.codemodel.JBlock;
-import com.sun.codemodel.JExpr;
-import com.sun.codemodel.JType;
-import com.sun.codemodel.JVar;
+import java.util.Arrays;
+import java.util.List;
 
 public abstract class DrillFuncHolder extends AbstractFuncHolder {
 
@@ -261,6 +262,11 @@ public abstract class DrillFuncHolder extends AbstractFuncHolder {
 
   public MajorType getReturnType(final List<LogicalExpression> logicalExpressions) {
     return attributes.getReturnType().getType(logicalExpressions, attributes);
+  }
+
+  public int getOutputSizeEstimate(final List<LogicalExpression> logicalExpressions, RecordBatchSizer recordBatchSizer,
+                                   RecordBatch recordBatch) {
+    return attributes.getOutputSizeEstimate().getOutputSize(logicalExpressions, recordBatchSizer, recordBatch);
   }
 
   public NullHandling getNullHandling() {

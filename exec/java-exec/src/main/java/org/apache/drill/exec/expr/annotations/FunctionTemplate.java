@@ -23,10 +23,14 @@ import org.apache.drill.exec.expr.fn.FunctionAttributes;
 import org.apache.drill.exec.expr.fn.output.ConcatReturnTypeInference;
 import org.apache.drill.exec.expr.fn.output.DecimalReturnTypeInference;
 import org.apache.drill.exec.expr.fn.output.DefaultReturnTypeInference;
+import org.apache.drill.exec.expr.fn.output.OutputSizeEstimator;
+import org.apache.drill.exec.expr.fn.output.OutputSizeEstimators;
 import org.apache.drill.exec.expr.fn.output.PadReturnTypeInference;
 import org.apache.drill.exec.expr.fn.output.ReturnTypeInference;
 import org.apache.drill.exec.expr.fn.output.SameInOutLengthReturnTypeInference;
 import org.apache.drill.exec.expr.fn.output.StringCastReturnTypeInference;
+import org.apache.drill.exec.record.RecordBatch;
+import org.apache.drill.exec.record.RecordBatchSizer;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
@@ -87,6 +91,28 @@ public @interface FunctionTemplate {
    */
   boolean isNiladic() default false;
   boolean checkPrecisionRange() default false;
+
+
+  /**
+   * This enum will be used to estimate the average size of the output
+   * produced by a function that produces variable length output
+   */
+  public enum OutputSizeEstimate {
+    DEFAULT(OutputSizeEstimators.ConcatOutputSizeEstimator.INSTANCE),
+    CONCAT(OutputSizeEstimators.ConcatOutputSizeEstimator.INSTANCE);
+    OutputSizeEstimator estimator;
+
+    OutputSizeEstimate(OutputSizeEstimator estimator) {
+      this.estimator = estimator;
+    }
+
+    public int getOutputSize(List<LogicalExpression> logicalExpressions, RecordBatchSizer recordBatchSizer,
+                             RecordBatch recordBatch) {
+      return estimator.getEstimatedOutputSize(logicalExpressions, recordBatchSizer, recordBatch);
+    }
+  }
+
+  OutputSizeEstimate outputSizeEstimate() default OutputSizeEstimate.DEFAULT;
 
   enum NullHandling {
     /**
