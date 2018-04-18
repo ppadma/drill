@@ -29,9 +29,11 @@ import org.apache.drill.exec.physical.impl.common.HashTable;
 import org.apache.drill.exec.record.BatchSchema;
 import org.apache.drill.exec.record.RecordBatch;
 import org.apache.drill.exec.record.RecordBatch.IterOutcome;
+import org.apache.drill.exec.record.RecordBatchMemoryManager;
 import org.apache.drill.exec.record.VectorContainer;
 import org.apache.drill.exec.record.VectorWrapper;
 import org.apache.calcite.rel.core.JoinRelType;
+import org.apache.drill.exec.vector.ValueVector;
 
 public abstract class HashJoinProbeTemplate implements HashJoinProbe {
 
@@ -47,10 +49,14 @@ public abstract class HashJoinProbeTemplate implements HashJoinProbe {
 
   private HashJoinBatch outgoingJoinBatch = null;
 
-  private static final int TARGET_RECORDS_PER_BATCH = 4000;
+  // Upto ((ValueVector.MAX_ROW_COUNT)/2) + 1 is fine.
+  // private static final int TARGET_RECORDS_PER_BATCH = ((ValueVector.MAX_ROW_COUNT)/2) + 1;
+
+  private static final int TARGET_RECORDS_PER_BATCH = ValueVector.MAX_ROW_COUNT;
+  private int targetOutputRecords =  TARGET_RECORDS_PER_BATCH;
 
   /* Helper class
-   * Maintains linked list of build side records with the same key
+   * Maintains linked list of build side records with the same ke
    * Keeps information about which build records have a corresponding
    * matching key in the probe side (for outer, right joins)
    */
@@ -106,7 +112,7 @@ public abstract class HashJoinProbeTemplate implements HashJoinProbe {
   }
 
   public void executeProjectRightPhase() {
-    while (outputRecords < TARGET_RECORDS_PER_BATCH && recordsProcessed < recordsToProcess) {
+    while (outputRecords < targetOutputRecords && recordsProcessed < recordsToProcess) {
       projectBuildRecord(unmatchedBuildIndexes.get(recordsProcessed), outputRecords);
       recordsProcessed++;
       outputRecords++;
@@ -114,8 +120,7 @@ public abstract class HashJoinProbeTemplate implements HashJoinProbe {
   }
 
   public void executeProbePhase() throws SchemaChangeException {
-    while (outputRecords < TARGET_RECORDS_PER_BATCH && probeState != ProbeState.DONE && probeState != ProbeState.PROJECT_RIGHT) {
-
+    while (outputRecords < targetOutputRecords && probeState != ProbeState.DONE && probeState != ProbeState.PROJECT_RIGHT) {
       // Check if we have processed all records in this batch we need to invoke next
       if (recordsProcessed == recordsToProcess) {
 
@@ -181,9 +186,9 @@ public abstract class HashJoinProbeTemplate implements HashJoinProbe {
              * join we keep track of which records we need to project at the end
              */
             hjHelper.setRecordMatched(currentCompositeIdx);
-
             projectBuildRecord(currentCompositeIdx, outputRecords);
             projectProbeRecord(recordsProcessed, outputRecords);
+
             outputRecords++;
             /* Projected single row from the build side with matching key but there
              * may be more rows with the same key. Check if that's the case
