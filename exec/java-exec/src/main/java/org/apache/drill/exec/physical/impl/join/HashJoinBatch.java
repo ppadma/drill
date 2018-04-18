@@ -195,7 +195,7 @@ public class HashJoinBatch extends AbstractBinaryRecordBatch<HashJoinPOP> {
 
     public void updateProbe() {
       setRecordBatchSizer(LEFT_INDEX, new RecordBatchSizer(left));
-      probeRowWidth = getRecordBatchSizer(LEFT_INDEX).getRowSize();
+      probeRowWidth = getRecordBatchSizer(LEFT_INDEX).netRowWidth();
 
       final int newOutgoingRowWidth = probeRowWidth + (int)getAvgInputRowWidth(RIGHT_INDEX);
       // update the value to be used for next batch(es)
@@ -479,7 +479,7 @@ public class HashJoinBatch extends AbstractBinaryRecordBatch<HashJoinPOP> {
   public HashJoinProbe setupHashJoinProbe() throws ClassTransformationException, IOException {
     final CodeGenerator<HashJoinProbe> cg = CodeGenerator.get(HashJoinProbe.TEMPLATE_DEFINITION, context.getOptions());
     cg.plainJavaCapable(true);
-    cg.saveCodeForDebugging(true);
+   // cg.saveCodeForDebugging(true);
     final ClassGenerator<HashJoinProbe> g = cg.getRoot();
 
     // Generate the code to project build side records
