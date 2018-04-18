@@ -210,7 +210,7 @@ public class HashJoinBatch extends AbstractBinaryRecordBatch<HashJoinPOP> {
       // These are number of rows we can fit in remaining memory based on new outgoing row width.
       final int numOutputRowsRemaining = RecordBatchSizer.safeDivide(remainingMemory, newOutgoingRowWidth);
 
-      hashJoinProbe.setOutputCount(adjustOutputRowCount(hashJoinProbe.getOutputCount() + numOutputRowsRemaining));
+    //  hashJoinProbe.setOutputCount(adjustOutputRowCount(hashJoinProbe.getOutputCount() + numOutputRowsRemaining));
 
     }
 
@@ -258,7 +258,7 @@ public class HashJoinBatch extends AbstractBinaryRecordBatch<HashJoinPOP> {
       hashJoinMemoryManager.updateProbe();
 
       int outputRowCount = hashJoinMemoryManager.getOutputRowCount();
-      hashJoinProbe.setOutputCount(outputRowCount);
+     // hashJoinProbe.setOutputCount(outputRowCount);
       // Build the container schema and set the counts
       for (VectorWrapper w : container) {
         RecordBatchSizer.ColumnSize colSize = hashJoinMemoryManager.getColumnSize(w.getField().getName());

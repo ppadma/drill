@@ -69,7 +69,7 @@ public abstract class HashJoinProbeTemplate implements HashJoinProbe {
   // Number of records in the output container
   private int outputRecords;
 
-  private int targetOutputRecords;
+  private int targetOutputRecords =  TARGET_RECORDS_PER_BATCH;
 
   // Indicate if we should drain the next record from the probe side
   private boolean getNextRecord = true;
