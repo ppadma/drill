@@ -34,7 +34,11 @@ public abstract class AbstractBinaryRecordBatch<T extends PhysicalOperator> exte
   // state (IterOutcome) of the right input
   protected IterOutcome rightUpstream = IterOutcome.NONE;
 
-  // For now only used by Lateral and Merge Join
+  public RecordBatchMemoryManager getBatchMemoryManager() {
+    return batchMemoryManager;
+  }
+
+  // For now only used by Lateral, Merge Join and Hash Join
   protected RecordBatchMemoryManager batchMemoryManager;
 
   protected AbstractBinaryRecordBatch(final T popConfig, final FragmentContext context, RecordBatch left,

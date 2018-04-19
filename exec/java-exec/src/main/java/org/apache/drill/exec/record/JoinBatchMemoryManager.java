@@ -43,22 +43,21 @@ public class JoinBatchMemoryManager extends RecordBatchMemoryManager {
   }
 
   @Override
-  public int update(int inputIndex, int outputPosition) {
+  public int update(int inputIndex, int outputPosition, boolean useAggregate) {
     switch (inputIndex) {
       case LEFT_INDEX:
         setRecordBatchSizer(inputIndex, new RecordBatchSizer(leftIncoming));
-        leftRowWidth = getRecordBatchSizer(inputIndex).netRowWidth();
+        leftRowWidth = useAggregate ? (int)getAvgInputRowWidth(inputIndex) : getRecordBatchSizer(inputIndex).netRowWidth();
         logger.debug("left incoming batch size : {}", getRecordBatchSizer(inputIndex));
         break;
       case RIGHT_INDEX:
         setRecordBatchSizer(inputIndex, new RecordBatchSizer(rightIncoming));
-        rightRowWidth = getRecordBatchSizer(inputIndex).netRowWidth();
+        rightRowWidth = useAggregate ? (int)getAvgInputRowWidth(inputIndex) : getRecordBatchSizer(inputIndex).netRowWidth();
         logger.debug("right incoming batch size : {}", getRecordBatchSizer(inputIndex));
       default:
         break;
     }
 
-    updateIncomingStats(inputIndex);
     final int newOutgoingRowWidth = leftRowWidth + rightRowWidth;
 
     // If outgoing row width is 0, just return. This is possible for empty batches or
@@ -92,14 +91,8 @@ public class JoinBatchMemoryManager extends RecordBatchMemoryManager {
   }
 
   @Override
-  public RecordBatchSizer.ColumnSize getColumnSize(String name) {
-    RecordBatchSizer leftSizer = getRecordBatchSizer(LEFT_INDEX);
-    RecordBatchSizer rightSizer = getRecordBatchSizer(RIGHT_INDEX);
-
-    if (leftSizer != null && leftSizer.getColumn(name) != null) {
-      return leftSizer.getColumn(name);
-    }
-    return rightSizer == null ? null : rightSizer.getColumn(name);
+  public int update(int inputIndex, int outputPosition) {
+    return update(inputIndex, outputPosition, false);
   }
 
   public enum Metric implements MetricDef {

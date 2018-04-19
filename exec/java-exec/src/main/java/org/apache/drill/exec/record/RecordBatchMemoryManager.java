@@ -21,6 +21,8 @@ import com.google.common.base.Preconditions;
 import org.apache.drill.exec.vector.UInt4Vector;
 import org.apache.drill.exec.vector.ValueVector;
 
+import java.util.List;
+
 public class RecordBatchMemoryManager {
   protected static final int MAX_NUM_ROWS = ValueVector.MAX_ROW_COUNT;
   protected static final int MIN_NUM_ROWS = 1;
@@ -147,6 +149,12 @@ public class RecordBatchMemoryManager {
     return getOutputRowCount();
   }
 
+  public int update(int inputIndex, int outputPosition, boolean useAggregate) {
+    // by default just return the outputRowCount
+    return getOutputRowCount();
+  }
+
+
   public void update(int inputIndex) {
   }
 
@@ -188,12 +196,14 @@ public class RecordBatchMemoryManager {
   public void setRecordBatchSizer(int index, RecordBatchSizer sizer) {
     Preconditions.checkArgument(index >= 0 && index < numInputs);
     this.sizer[index] = sizer;
-    inputBatchStats[index] = new BatchStats();
+    if (inputBatchStats[index] == null) {
+      inputBatchStats[index] = new BatchStats();
+    }
+    updateIncomingStats(index);
   }
 
   public void setRecordBatchSizer(RecordBatchSizer sizer) {
-    this.sizer[DEFAULT_INPUT_INDEX] = sizer;
-    inputBatchStats[DEFAULT_INPUT_INDEX] = new BatchStats();
+    setRecordBatchSizer(DEFAULT_INPUT_INDEX, sizer);
   }
 
   public RecordBatchSizer getRecordBatchSizer(int index) {
@@ -211,10 +221,16 @@ public class RecordBatchMemoryManager {
   }
 
   public RecordBatchSizer.ColumnSize getColumnSize(String name) {
-    return sizer[DEFAULT_INPUT_INDEX].getColumn(name);
+    for (int index=0; index < numInputs; index++) {
+      if (sizer[index] == null || sizer[index].getColumn(name) == null) {
+        continue;
+      }
+      return sizer[index].getColumn(name);
+    }
+    return null;
   }
 
-  public void updateIncomingStats(int index) {
+  private void updateIncomingStats(int index) {
     Preconditions.checkArgument(index >= 0 && index < numInputs);
     Preconditions.checkArgument(inputBatchStats[index] != null);
     inputBatchStats[index].incNumBatches();
@@ -222,10 +238,8 @@ public class RecordBatchMemoryManager {
     inputBatchStats[index].incTotalRecords(sizer[index].rowCount());
   }
 
-  public void updateIncomingStats() {
-    inputBatchStats[DEFAULT_INPUT_INDEX].incNumBatches();
-    inputBatchStats[DEFAULT_INPUT_INDEX].incSumBatchSizes(sizer[DEFAULT_INPUT_INDEX].netSize());
-    inputBatchStats[DEFAULT_INPUT_INDEX].incTotalRecords(sizer[DEFAULT_INPUT_INDEX].rowCount());
+  private void updateIncomingStats() {
+    updateIncomingStats(DEFAULT_INPUT_INDEX);
   }
 
   public void updateOutgoingStats(int outputRecords) {
@@ -240,5 +254,31 @@ public class RecordBatchMemoryManager {
 
   public int getOffsetVectorWidth() {
     return UInt4Vector.VALUE_WIDTH;
+  }
+
+  public void allocateVectors(VectorContainer container, int recordCount) {
+    // Allocate memory for the vectors.
+    // This will iteratively allocate memory for all nested columns underneath.
+    for (VectorWrapper w : container) {
+      RecordBatchSizer.ColumnSize colSize = getColumnSize(w.getField().getName());
+      colSize.allocateVector(w.getValueVector(), recordCount);
+    }
+  }
+
+  public void allocateVectors(VectorContainer container) {
+    allocateVectors(container, outputRowCount);
+  }
+
+  public void allocateVectors(List<ValueVector> valueVectors, int recordCount) {
+    // Allocate memory for the vectors.
+    // This will iteratively allocate memory for all nested columns underneath.
+    for (ValueVector v : valueVectors) {
+      RecordBatchSizer.ColumnSize colSize = getColumnSize(v.getField().getName());
+      colSize.allocateVector(v, recordCount);
+    }
+  }
+
+  public void allocateVectors(List<ValueVector> valueVectors) {
+    allocateVectors(valueVectors, outputRowCount);
   }
 }

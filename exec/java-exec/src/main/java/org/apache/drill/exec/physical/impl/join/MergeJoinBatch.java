@@ -52,7 +52,6 @@ import org.apache.drill.exec.record.BatchSchema;
 import org.apache.drill.exec.record.JoinBatchMemoryManager;
 import org.apache.drill.exec.record.MaterializedField;
 import org.apache.drill.exec.record.RecordBatch;
-import org.apache.drill.exec.record.RecordBatchSizer;
 import org.apache.drill.exec.record.RecordIterator;
 import org.apache.drill.exec.record.TypedFieldId;
 import org.apache.drill.exec.record.VectorAccessible;
@@ -449,11 +448,7 @@ public class MergeJoinBatch extends AbstractBinaryRecordBatch<MergeJoinPOP> {
 
     // Allocate memory for the vectors.
     // This will iteratively allocate memory for all nested columns underneath.
-    int outputRowCount = batchMemoryManager.getOutputRowCount();
-    for (VectorWrapper w : container) {
-      RecordBatchSizer.ColumnSize colSize = batchMemoryManager.getColumnSize(w.getField().getName());
-      colSize.allocateVector(w.getValueVector(), outputRowCount);
-    }
+    batchMemoryManager.allocateVectors(container);
 
     container.buildSchema(BatchSchema.SelectionVectorMode.NONE);
     logger.debug("Built joined schema: {}", container.getSchema());

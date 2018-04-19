@@ -161,8 +161,6 @@ public class FlattenRecordBatch extends AbstractSingleRecordBatch<FlattenPOP> {
 
       logger.debug("output batch size : {}, avg outgoing rowWidth : {}, output rowCount : {}",
         outputBatchSize, avgOutgoingRowWidth, getOutputRowCount());
-
-      updateIncomingStats();
     }
   }
 
@@ -304,12 +302,7 @@ public class FlattenRecordBatch extends AbstractSingleRecordBatch<FlattenPOP> {
   }
 
   private boolean doAlloc(int recordCount) {
-
-    for (ValueVector v : this.allocationVectors) {
-      // This will iteratively allocate memory for nested columns underneath.
-      RecordBatchSizer.ColumnSize colSize = flattenMemoryManager.getColumnSize(v.getField().getName());
-      colSize.allocateVector(v, recordCount);
-    }
+    flattenMemoryManager.allocateVectors(allocationVectors, recordCount);
 
     //Allocate vv for complexWriters.
     if (complexWriters == null) {

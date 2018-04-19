@@ -152,7 +152,7 @@ public class LateralJoinBatch extends AbstractBinaryRecordBatch<LateralJoinPOP> 
     updateMemoryManager(RIGHT_INPUT);
 
     // allocate space for the outgoing batch
-    allocateVectors();
+    batchMemoryManager.allocateVectors(container, maxOutputRowCount);
 
     return produceOutputBatch();
   }

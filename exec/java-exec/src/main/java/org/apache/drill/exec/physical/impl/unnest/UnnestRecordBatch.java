@@ -136,8 +136,6 @@ public class UnnestRecordBatch extends AbstractTableFunctionRecordBatch<UnnestPO
 
       logger.debug("output batch size : {}, avg outgoing rowWidth : {}, output rowCount : {}",
           outputBatchSize, avgOutgoingRowWidth, getOutputRowCount());
-
-      updateIncomingStats();
     }
 
   }
