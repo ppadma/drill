@@ -19,8 +19,8 @@ public class ProjectMemoryManager extends RecordBatchMemoryManager {
 
     public void setIncomingBatch(RecordBatch recordBatch) { incomingBatch = recordBatch; }
 
-    public static void Unimplemented() {
-        throw new IllegalStateException();
+    public static void Unimplemented(String message) {
+        throw new IllegalStateException(message);
     }
 
     enum WidthType {
@@ -88,7 +88,7 @@ public class ProjectMemoryManager extends RecordBatchMemoryManager {
             if(isFixedWidth(vv)) {
                 addFixedWidthField(vv, outputColumnType);
             } else {
-                ProjectMemoryManager.Unimplemented();
+                ProjectMemoryManager.Unimplemented("Project Batch sizing only implemented for FW types");
             }
     }
 

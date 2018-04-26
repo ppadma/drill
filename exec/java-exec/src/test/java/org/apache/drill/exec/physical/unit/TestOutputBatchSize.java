@@ -27,6 +27,7 @@ import org.apache.drill.exec.physical.base.PhysicalOperator;
 import org.apache.drill.exec.physical.config.FlattenPOP;
 import org.apache.drill.exec.physical.config.HashJoinPOP;
 import org.apache.drill.exec.physical.config.MergeJoinPOP;
+import org.apache.drill.exec.physical.config.Project;
 import org.apache.drill.exec.physical.config.UnionAll;
 import org.apache.drill.exec.physical.impl.ScanBatch;
 import org.apache.drill.exec.record.RecordBatchSizer;
@@ -75,6 +76,83 @@ public class TestOutputBatchSize extends PhysicalOpUnitTestBase {
     }
     return totalSize;
   }
+
+
+  @Test
+  public void testProjectFixedWidth() throws Exception {
+    testProjectFixedWidthImpl(true, 100);
+    testProjectFixedWidthImpl(false, 100);
+  }
+
+    /**
+     * Tests BatchSizing of fixed-width transfers and new column creations in Project.
+     * Transfer: Evaluates 'select *'
+     * New Columns: Evalutes 'select C0 + 5 as C0 ... C[columnCount] + 5 as C[columnCount]
+     * @param transfer
+     * @throws Exception
+     */
+
+  public void testProjectFixedWidthImpl(boolean transfer, int columnCount) throws  Exception {
+
+    //generate a row with N columns C0..C[columnCount], value in a colum is same as column id
+    String jsonRow = "{";
+    String[] baselineColumns = new String [columnCount];
+    Object[] baselineValues = new Long[columnCount];
+
+    int exprSize = (transfer ? 2 : 2 * columnCount);
+    String[] expr = new String[exprSize];
+
+    // Expr for a 'select *' as expected by parseExprs()
+    if (transfer) {
+      expr[0] = "`**`";
+      expr[1] = "`**`";
+    }
+
+    for (int i = 0; i < columnCount; i++) {
+      jsonRow +=  "\"" + "C" + i + "\": " + i + ((i == columnCount - 1) ? "" : ",");
+      baselineColumns[i] = "C" + i;
+      if (!transfer) {
+        expr[i * 2] = baselineColumns[i] + " + 5";
+        expr[i * 2 + 1] = baselineColumns[i];
+      }
+      baselineValues[i] = (long)(transfer ? i : i + 5);
+    }
+    jsonRow += "}";
+    String batchString = "[";
+    for (int i = 0; i < numRows; i++) {
+      batchString += jsonRow + ((i == numRows - 1) ? "" : ",");
+    }
+    batchString += "]";
+    List<String> inputJsonBatches = Lists.newArrayList();
+    inputJsonBatches.add(batchString);
+
+    List<String> expectedJsonBatches = Lists.newArrayList();
+    expectedJsonBatches.add(batchString);
+
+    Project projectConf = new Project(parseExprs(expr), null);
+    mockOpContext(projectConf, initReservation, maxAllocation);
+
+
+    long totalSize = getExpectedSize(expectedJsonBatches);
+
+    fragContext.getOptions().setLocalOption("drill.exec.memory.operator.output_batch_size", totalSize / 2);
+
+
+    OperatorTestBuilder opTestBuilder = opTestBuilder()
+            .physicalOperator(projectConf)
+            .inputDataStreamJson(inputJsonBatches)
+            .baselineColumns(baselineColumns)
+            .expectedNumBatches(2)  // verify number of batches
+            .expectedBatchSize(totalSize / 2); // verify batch size.
+
+    for (int i = 0; i < numRows; i++) {
+      opTestBuilder.baselineValues(baselineValues);
+    }
+
+    opTestBuilder.go();
+  }
+
+
 
   @Test
   public void testFlattenFixedWidth() throws Exception {
