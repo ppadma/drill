@@ -37,6 +37,7 @@ import org.apache.drill.common.expression.fn.CastFunctions;
 import org.apache.drill.common.logical.data.NamedExpression;
 import org.apache.drill.common.types.TypeProtos.MinorType;
 import org.apache.drill.common.types.Types;
+import org.apache.drill.exec.ExecConstants;
 import org.apache.drill.exec.exception.ClassTransformationException;
 import org.apache.drill.exec.exception.OutOfMemoryException;
 import org.apache.drill.exec.exception.SchemaChangeException;
@@ -54,6 +55,7 @@ import org.apache.drill.exec.record.AbstractSingleRecordBatch;
 import org.apache.drill.exec.record.BatchSchema.SelectionVectorMode;
 import org.apache.drill.exec.record.MaterializedField;
 import org.apache.drill.exec.record.RecordBatch;
+import org.apache.drill.exec.record.RecordBatchSizer;
 import org.apache.drill.exec.record.SimpleRecordBatch;
 import org.apache.drill.exec.record.TransferPair;
 import org.apache.drill.exec.record.TypedFieldId;
@@ -78,16 +80,15 @@ public class ProjectRecordBatch extends AbstractSingleRecordBatch<Project> {
   private Projector projector;
   private List<ValueVector> allocationVectors;
 
-  public List<LogicalExpression> getOutputExpressions() {
-    return outputExpressions;
-  }
 
-  private List<LogicalExpression> outputExpressions; //list of expressions, corresponding to each output field
   private List<ComplexWriter> complexWriters;
   private List<FieldReference> complexFieldReferencesList;
   private boolean hasRemainder = false;
   private int remainderIndex = 0;
   private int recordCount;
+
+  private ProjectMemoryManager memoryManager;
+
 
   private static final String EMPTY_STRING = "";
   private boolean first = true;
@@ -114,6 +115,10 @@ public class ProjectRecordBatch extends AbstractSingleRecordBatch<Project> {
 
   public ProjectRecordBatch(final Project pop, final RecordBatch incoming, final FragmentContext context) throws OutOfMemoryException {
     super(pop, context, incoming);
+
+    // get the output batch size from config.
+    int configuredBatchSize = (int) context.getOptions().getOption(ExecConstants.OUTPUT_BATCH_SIZE_VALIDATOR);
+    memoryManager = new ProjectMemoryManager(configuredBatchSize);
   }
 
   @Override
@@ -212,12 +217,13 @@ public class ProjectRecordBatch extends AbstractSingleRecordBatch<Project> {
     first = false;
     container.zeroVectors();
 
-    if (!doAlloc(incomingRecordCount)) {
+    int maxOuputRecordCount = memoryManager.getOutputRowCount();
+    if (!doAlloc(maxOuputRecordCount)) {
       outOfMemory = true;
       return IterOutcome.OUT_OF_MEMORY;
     }
 
-    final int outputRecords = projector.projectRecords(this,0, incomingRecordCount, 0);
+    final int outputRecords = projector.projectRecords(this.incoming,0, maxOuputRecordCount, 0);
     if (outputRecords < incomingRecordCount) {
       setValueCount(outputRecords);
       hasRemainder = true;
@@ -243,11 +249,12 @@ public class ProjectRecordBatch extends AbstractSingleRecordBatch<Project> {
 
   private void handleRemainder() {
     final int remainingRecordCount = incoming.getRecordCount() - remainderIndex;
-    if (!doAlloc(remainingRecordCount)) {
+    final int recordsToProcess = Math.min(remainingRecordCount, memoryManager.getOutputRowCount());
+    if (!doAlloc(recordsToProcess)) {
       outOfMemory = true;
       return;
     }
-    final int projRecords = projector.projectRecords(this, remainderIndex, remainingRecordCount, 0);
+    final int projRecords = projector.projectRecords(this.incoming, remainderIndex, recordsToProcess, 0);
     if (projRecords < remainingRecordCount) {
       setValueCount(projRecords);
       this.recordCount = projRecords;
@@ -328,6 +335,7 @@ public class ProjectRecordBatch extends AbstractSingleRecordBatch<Project> {
   }
 
   private void setupNewSchemaFromInput(RecordBatch incomingBatch) throws SchemaChangeException {
+    memoryManager.setIncomingBatch(incomingBatch);
     if (allocationVectors != null) {
       for (final ValueVector v : allocationVectors) {
         v.clear();
@@ -500,6 +508,7 @@ public class ProjectRecordBatch extends AbstractSingleRecordBatch<Project> {
         // need to do evaluation.
         final ValueVector vector = container.addOrGet(outputField, callBack);
         allocationVectors.add(vector);
+        memoryManager.addField(vector, null, ProjectMemoryManager.OutputColumnType.NEW);
         final TypedFieldId fid = container.getValueVectorId(SchemaPath.getSimplePath(outputField.getName()));
         final boolean useSetSafe = !(vector instanceof FixedWidthVector);
         final ValueVectorWriteExpression write = new ValueVectorWriteExpression(fid, expr, useSetSafe);
@@ -518,6 +527,8 @@ public class ProjectRecordBatch extends AbstractSingleRecordBatch<Project> {
         logger.debug("Added eval for project expression.");
       }
     }
+    // All output columns have been processed calculate the output row count
+    memoryManager.update();
 
     try {
       CodeGenerator<Projector> codeGen = cg.getCodeGenerator();
@@ -542,6 +553,7 @@ public class ProjectRecordBatch extends AbstractSingleRecordBatch<Project> {
     final ValueVector vvOut = container.addOrGet(MaterializedField.create(ref.getLastSegment().getNameSegment().getPath(),
                                                                           vectorRead.getMajorType()), callBack);
     final TransferPair tp = vvIn.makeTransferPair(vvOut);
+    memoryManager.addField(vvIn, null, ProjectMemoryManager.OutputColumnType.TRANSFER);
     transfers.add(tp);
     transferFieldIds.add(vectorRead.getFieldId().getFieldIds()[0]);
   }
@@ -599,10 +611,10 @@ public class ProjectRecordBatch extends AbstractSingleRecordBatch<Project> {
 
           final MaterializedField outputField = MaterializedField.create(name, expr.getMajorType());
           final ValueVector vv = container.addOrGet(outputField, callBack);
+          memoryManager.addField(vv, null, ProjectMemoryManager.OutputColumnType.NEW);
           allocationVectors.add(vv);
           final TypedFieldId fid = container.getValueVectorId(SchemaPath.getSimplePath(outputField.getName()));
           final ValueVectorWriteExpression write = new ValueVectorWriteExpression(fid, expr, true);
-          outputExpressions.add(expr);
           final HoldingContainer hc = cg.addExpr(write, ClassGenerator.BlkCreateMode.TRUE_IF_BOUND);
         }
       }
