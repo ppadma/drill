@@ -1,6 +1,3 @@
-package org.apache.drill;
-
-
 /**
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
@@ -19,6 +16,7 @@ package org.apache.drill;
  * limitations under the License.
  */
 
+package org.apache.drill;
 
 import ch.qos.logback.classic.Level;
 import org.apache.drill.exec.ExecConstants;
