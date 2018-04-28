@@ -105,7 +105,7 @@ public class ProjectMemoryManager extends RecordBatchMemoryManager {
             if(isFixedWidth(vv)) {
                 addFixedWidthField(vv, outputColumnType);
             } else {
-                ProjectMemoryManager.Unimplemented("Project Batch sizing only implemented for FW types");
+                //ProjectMemoryManager.Unimplemented("Project Batch sizing only implemented for FW types");
             }
     }
 
