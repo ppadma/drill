@@ -24,8 +24,6 @@ import org.apache.drill.exec.record.RecordBatchMemoryManager;
 import org.apache.drill.exec.record.RecordBatchSizer;
 import org.apache.drill.exec.vector.FixedWidthVector;
 import org.apache.drill.exec.vector.ValueVector;
-import org.apache.drill.exec.vector.VariableWidthVector;
-import org.apache.drill.exec.vector.complex.RepeatedVariableWidthVectorLike;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -63,8 +61,6 @@ public class ProjectMemoryManager extends RecordBatchMemoryManager {
 
 
     static boolean isFixedWidth(ValueVector vv) {
-       assert (vv instanceof FixedWidthVector) == !(vv instanceof VariableWidthVector
-                                                    || vv instanceof RepeatedVariableWidthVectorLike);
        return (vv instanceof FixedWidthVector);
     }
 
