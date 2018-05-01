@@ -158,6 +158,9 @@ public class ProjectRecordBatch extends AbstractSingleRecordBatch<Project> {
       return IterOutcome.NONE;
     }
 
+    // All output columns have been processed calculate the output row count
+    memoryManager.update();
+
     int incomingRecordCount = incoming.getRecordCount();
 
     if (first && incomingRecordCount == 0) {
@@ -217,6 +220,7 @@ public class ProjectRecordBatch extends AbstractSingleRecordBatch<Project> {
     container.zeroVectors();
 
     int maxOuputRecordCount = memoryManager.getOutputRowCount();
+//    System.out.println("outputRowCount " + memoryManager.getOutputRowCount() + " incoming "  + incomingRecordCount);
     if (!doAlloc(maxOuputRecordCount)) {
       outOfMemory = true;
       return IterOutcome.OUT_OF_MEMORY;
@@ -529,8 +533,7 @@ public class ProjectRecordBatch extends AbstractSingleRecordBatch<Project> {
         logger.debug("Added eval for project expression.");
       }
     }
-    // All output columns have been processed calculate the output row count
-    memoryManager.update();
+
 
     try {
       CodeGenerator<Projector> codeGen = cg.getCodeGenerator();

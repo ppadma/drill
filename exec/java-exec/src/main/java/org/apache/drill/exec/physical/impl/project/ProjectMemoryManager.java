@@ -123,6 +123,7 @@ public class ProjectMemoryManager extends RecordBatchMemoryManager {
         setOutputRowCount(getOutputBatchSize(), rowWidth);
         RecordBatchSizer batchSizer = new RecordBatchSizer(incomingBatch);
         setRecordBatchSizer(batchSizer);
+//        System.out.println("PMM update " + getOutputRowCount() + " " + batchSizer.rowCount());
         int outPutRowCount = Math.min(getOutputRowCount(), batchSizer.rowCount());
         setOutputRowCount(outPutRowCount);
     }
