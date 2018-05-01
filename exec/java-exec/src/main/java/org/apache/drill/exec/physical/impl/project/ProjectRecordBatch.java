@@ -399,6 +399,7 @@ public class ProjectRecordBatch extends AbstractSingleRecordBatch<Project> {
               final ValueVector vvOut = container.addOrGet(MaterializedField.create(ref.getAsNamePart().getName(),
                 vvIn.getField().getType()), callBack);
               final TransferPair tp = vvIn.makeTransferPair(vvOut);
+              memoryManager.addField(vvOut, null, ProjectMemoryManager.OutputColumnType.TRANSFER);
               transfers.add(tp);
             }
           } else if (value != null && value > 1) { // subsequent wildcards should do a copy of incoming valuevectors
@@ -425,6 +426,7 @@ public class ProjectRecordBatch extends AbstractSingleRecordBatch<Project> {
 
               final MaterializedField outputField = MaterializedField.create(name, expr.getMajorType());
               final ValueVector vv = container.addOrGet(outputField, callBack);
+              memoryManager.addField(vv, null, ProjectMemoryManager.OutputColumnType.NEW);
               allocationVectors.add(vv);
               final TypedFieldId fid = container.getValueVectorId(SchemaPath.getSimplePath(outputField.getName()));
               final ValueVectorWriteExpression write = new ValueVectorWriteExpression(fid, expr, true);
@@ -480,6 +482,7 @@ public class ProjectRecordBatch extends AbstractSingleRecordBatch<Project> {
           container.addOrGet(MaterializedField.create(ref.getLastSegment().getNameSegment().getPath(),
             vectorRead.getMajorType()), callBack);
         final TransferPair tp = vvIn.makeTransferPair(vvOut);
+        memoryManager.addField(vvOut, null, ProjectMemoryManager.OutputColumnType.TRANSFER);
         transfers.add(tp);
         transferFieldIds.add(vectorRead.getFieldId().getFieldIds()[0]);
       } else if (expr instanceof DrillFuncHolderExpr &&
@@ -541,87 +544,6 @@ public class ProjectRecordBatch extends AbstractSingleRecordBatch<Project> {
     }
   }
 
-  private void setupTransferPair(RecordBatch incomingBatch, List<TransferPair> transfers, IntHashSet transferFieldIds,
-                                 NamedExpression namedExpression, ValueVectorReadExpression expr) {
-    final ValueVectorReadExpression vectorRead = expr;
-    final TypedFieldId id = vectorRead.getFieldId();
-    final ValueVector vvIn = incomingBatch.getValueAccessorById(id.getIntermediateClass(), id.getFieldIds()).getValueVector();
-    Preconditions.checkNotNull(incomingBatch);
-
-    final FieldReference ref = getRef(namedExpression);
-    final ValueVector vvOut = container.addOrGet(MaterializedField.create(ref.getLastSegment().getNameSegment().getPath(),
-                                                                          vectorRead.getMajorType()), callBack);
-    final TransferPair tp = vvIn.makeTransferPair(vvOut);
-    memoryManager.addField(vvOut, null, ProjectMemoryManager.OutputColumnType.TRANSFER);
-    transfers.add(tp);
-    transferFieldIds.add(vectorRead.getFieldId().getFieldIds()[0]);
-  }
-
-  private boolean handleWildCardExpressions(RecordBatch incomingBatch, ErrorCollector collector, List<TransferPair> transfers,
-                                            ClassGenerator<Projector> cg, ClassifierResult result) throws SchemaChangeException {
-    if (result.isStar) {
-      // The value indicates which wildcard we are processing now
-      final Integer value = result.prefixMap.get(result.prefix);
-      if (value != null && value == 1) {
-        int k = 0;
-        for (final VectorWrapper<?> wrapper : incomingBatch) {
-          final ValueVector vvIn = wrapper.getValueVector();
-          if (k > result.outputNames.size() - 1) {
-            assert false;
-          }
-          final String name = result.outputNames.get(k++);  // get the renamed column names
-          if (name.isEmpty()) {
-            continue;
-          }
-
-          if (isImplicitFileColumn(vvIn)) {
-            continue;
-          }
-
-          final FieldReference ref = new FieldReference(name);
-          final ValueVector vvOut = container.addOrGet(MaterializedField.create(ref.getAsNamePart().getName(),
-                  vvIn.getField().getType()), callBack);
-          final TransferPair tp = vvIn.makeTransferPair(vvOut);
-          memoryManager.addField(vvOut, null, ProjectMemoryManager.OutputColumnType.TRANSFER);
-          transfers.add(tp);
-        }
-      } else if (value != null && value > 1) { // subsequent wildcards should do a copy of incoming valuevectors
-        int k = 0;
-        for (final VectorWrapper<?> wrapper : incomingBatch) {
-          final ValueVector vvIn = wrapper.getValueVector();
-          final SchemaPath originalPath = SchemaPath.getSimplePath(vvIn.getField().getName());
-          if (k > result.outputNames.size() - 1) {
-            assert false;
-          }
-          final String name = result.outputNames.get(k++);  // get the renamed column names
-          if (name.isEmpty()) {
-            continue;
-          }
-
-          if (isImplicitFileColumn(vvIn)) {
-            continue;
-          }
-
-          final LogicalExpression expr = ExpressionTreeMaterializer.materialize(originalPath, incomingBatch, collector,
-                  context.getFunctionRegistry() );
-          if (collector.hasErrors()) {
-            throw new SchemaChangeException(String.format("Failure while trying to materialize incomingBatch schema.  " +
-                    "Errors:\n %s.", collector.toErrorString()));
-          }
-
-          final MaterializedField outputField = MaterializedField.create(name, expr.getMajorType());
-          final ValueVector vv = container.addOrGet(outputField, callBack);
-          memoryManager.addField(vv, null, ProjectMemoryManager.OutputColumnType.NEW);
-          allocationVectors.add(vv);
-          final TypedFieldId fid = container.getValueVectorId(SchemaPath.getSimplePath(outputField.getName()));
-          final ValueVectorWriteExpression write = new ValueVectorWriteExpression(fid, expr, true);
-          final HoldingContainer hc = cg.addExpr(write, ClassGenerator.BlkCreateMode.TRUE_IF_BOUND);
-        }
-      }
-      return true;
-    }
-    return false;
-  }
 
   @Override
   protected boolean setupNewSchema() throws SchemaChangeException {
