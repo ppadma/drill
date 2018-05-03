@@ -95,13 +95,15 @@ public class ProjectMemoryManager extends RecordBatchMemoryManager {
         public String getName() { return materializedField.getName(); }
 
     }
-
+    int variableWidthColumnCount = 0;
+    int fixedWidthColumnCount = 0;
     void addField(ValueVector vv, LogicalExpression logicalExpression,
                   OutputColumnType outputColumnType) {
             if(isFixedWidth(vv)) {
+                fixedWidthColumnCount++;
                 addFixedWidthField(vv, outputColumnType);
             } else {
-                //ProjectMemoryManager.Unimplemented("Project Batch sizing only implemented for FW types");
+                variableWidthColumnCount++;
             }
     }
 
@@ -119,8 +121,11 @@ public class ProjectMemoryManager extends RecordBatchMemoryManager {
         setOutputRowCount(getOutputBatchSize(), rowWidth);
         RecordBatchSizer batchSizer = new RecordBatchSizer(incomingBatch);
         setRecordBatchSizer(batchSizer);
-//        System.out.println("PMM update " + getOutputRowCount() + " " + batchSizer.rowCount());
         int outPutRowCount = Math.min(getOutputRowCount(), batchSizer.rowCount());
+        //KM_TBD: Change this once variable width is implemented
+        if (rowWidth == 0 || variableWidthColumnCount != 0) {
+            outPutRowCount = batchSizer.rowCount();
+        }
         setOutputRowCount(outPutRowCount);
     }
 }
