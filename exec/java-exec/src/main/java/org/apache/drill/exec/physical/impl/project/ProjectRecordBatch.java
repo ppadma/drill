@@ -220,7 +220,6 @@ public class ProjectRecordBatch extends AbstractSingleRecordBatch<Project> {
     container.zeroVectors();
 
     int maxOuputRecordCount = memoryManager.getOutputRowCount();
-//    System.out.println("outputRowCount " + memoryManager.getOutputRowCount() + " incoming "  + incomingRecordCount);
     if (!doAlloc(maxOuputRecordCount)) {
       outOfMemory = true;
       return IterOutcome.OUT_OF_MEMORY;
