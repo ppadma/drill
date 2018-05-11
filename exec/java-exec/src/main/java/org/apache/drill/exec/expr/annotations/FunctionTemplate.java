@@ -29,8 +29,6 @@ import org.apache.drill.exec.expr.fn.output.PadReturnTypeInference;
 import org.apache.drill.exec.expr.fn.output.ReturnTypeInference;
 import org.apache.drill.exec.expr.fn.output.SameInOutLengthReturnTypeInference;
 import org.apache.drill.exec.expr.fn.output.StringCastReturnTypeInference;
-import org.apache.drill.exec.record.RecordBatch;
-import org.apache.drill.exec.record.RecordBatchSizer;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
@@ -99,6 +97,7 @@ public @interface FunctionTemplate {
    */
   public enum OutputSizeEstimate {
     DEFAULT(OutputSizeEstimators.ConcatOutputSizeEstimator.INSTANCE),
+    CLONE(OutputSizeEstimators.CloneOutputSizeEstimator.INSTANCE),
     CONCAT(OutputSizeEstimators.ConcatOutputSizeEstimator.INSTANCE);
     OutputSizeEstimator estimator;
 
@@ -106,10 +105,7 @@ public @interface FunctionTemplate {
       this.estimator = estimator;
     }
 
-    public int getOutputSize(List<LogicalExpression> logicalExpressions, RecordBatchSizer recordBatchSizer,
-                             RecordBatch recordBatch) {
-      return estimator.getEstimatedOutputSize(logicalExpressions, recordBatchSizer, recordBatch);
-    }
+    public OutputSizeEstimator getOutputSizeEstimator() { return estimator; }
   }
 
   OutputSizeEstimate outputSizeEstimate() default OutputSizeEstimate.DEFAULT;

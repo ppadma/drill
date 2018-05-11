@@ -39,9 +39,8 @@ import org.apache.drill.exec.expr.ClassGenerator.HoldingContainer;
 import org.apache.drill.exec.expr.DrillFuncHolderExpr;
 import org.apache.drill.exec.expr.TypeHelper;
 import org.apache.drill.exec.expr.annotations.FunctionTemplate.NullHandling;
+import org.apache.drill.exec.expr.fn.output.OutputSizeEstimator;
 import org.apache.drill.exec.ops.UdfUtilities;
-import org.apache.drill.exec.record.RecordBatch;
-import org.apache.drill.exec.record.RecordBatchSizer;
 import org.apache.drill.exec.vector.complex.reader.FieldReader;
 
 import java.util.Arrays;
@@ -264,9 +263,8 @@ public abstract class DrillFuncHolder extends AbstractFuncHolder {
     return attributes.getReturnType().getType(logicalExpressions, attributes);
   }
 
-  public int getOutputSizeEstimate(final List<LogicalExpression> logicalExpressions, RecordBatchSizer recordBatchSizer,
-                                   RecordBatch recordBatch) {
-    return attributes.getOutputSizeEstimate().getOutputSize(logicalExpressions, recordBatchSizer, recordBatch);
+  public OutputSizeEstimator getOutputSizeEstimator() {
+    return attributes.getOutputSizeEstimate().getOutputSizeEstimator();
   }
 
   public NullHandling getNullHandling() {

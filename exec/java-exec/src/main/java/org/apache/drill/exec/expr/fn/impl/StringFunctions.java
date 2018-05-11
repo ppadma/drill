@@ -20,16 +20,12 @@ package org.apache.drill.exec.expr.fn.impl;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.DrillBuf;
-
-import java.nio.charset.Charset;
-
-import javax.inject.Inject;
-
 import org.apache.drill.exec.expr.DrillSimpleFunc;
 import org.apache.drill.exec.expr.annotations.FunctionTemplate;
 import org.apache.drill.exec.expr.annotations.FunctionTemplate.FunctionScope;
 import org.apache.drill.exec.expr.annotations.FunctionTemplate.NullHandling;
 import org.apache.drill.exec.expr.annotations.FunctionTemplate.ReturnType;
+import org.apache.drill.exec.expr.annotations.FunctionTemplate.OutputSizeEstimate;
 import org.apache.drill.exec.expr.annotations.Output;
 import org.apache.drill.exec.expr.annotations.Param;
 import org.apache.drill.exec.expr.annotations.Workspace;
@@ -39,6 +35,9 @@ import org.apache.drill.exec.expr.holders.IntHolder;
 import org.apache.drill.exec.expr.holders.NullableVarCharHolder;
 import org.apache.drill.exec.expr.holders.VarBinaryHolder;
 import org.apache.drill.exec.expr.holders.VarCharHolder;
+
+import javax.inject.Inject;
+import java.nio.charset.Charset;
 
 public class StringFunctions{
   static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(StringFunctions.class);
@@ -506,6 +505,7 @@ public class StringFunctions{
   @FunctionTemplate(name = "upper",
       scope = FunctionScope.SIMPLE,
       returnType = ReturnType.SAME_IN_OUT_LENGTH,
+      outputSizeEstimate = OutputSizeEstimate.CLONE,
       nulls = NullHandling.NULL_IF_NULL)
   public static class UpperCase implements DrillSimpleFunc {
 
@@ -1424,6 +1424,7 @@ public class StringFunctions{
   @FunctionTemplate(name = "concat",
       scope = FunctionScope.SIMPLE,
       returnType = ReturnType.CONCAT,
+      outputSizeEstimate = OutputSizeEstimate.CONCAT,
       nulls = NullHandling.INTERNAL)
   public static class Concat implements DrillSimpleFunc {
     @Param  VarCharHolder left;

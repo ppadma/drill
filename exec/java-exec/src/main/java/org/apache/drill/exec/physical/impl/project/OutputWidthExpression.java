@@ -1,0 +1,85 @@
+package org.apache.drill.exec.physical.impl.project;
+
+import org.apache.drill.common.expression.FunctionHolderExpression;
+import org.apache.drill.exec.expr.AbstractExecExprVisitor;
+import org.apache.drill.exec.expr.ValueVectorReadExpression;
+import org.apache.drill.exec.expr.fn.output.OutputSizeEstimator;
+
+import java.util.ArrayList;
+
+public abstract class OutputWidthExpression {
+
+    abstract <T, V, E extends Exception> T accept(AbstractExecExprVisitor<T, V, E> visitor, V value) throws E;
+
+    public static class FunctionCallExpr extends OutputWidthExpression {
+        FunctionHolderExpression holder;
+        ArrayList<OutputWidthExpression> args;
+        OutputSizeEstimator estimator;
+
+        public FunctionCallExpr(FunctionHolderExpression holder, OutputSizeEstimator estimator,
+                                ArrayList<OutputWidthExpression> args) {
+            this.holder = holder;
+            this.args = args;
+            this.estimator = estimator;
+        }
+
+        public FunctionHolderExpression getHolder() {
+            return holder;
+        }
+
+        public ArrayList<OutputWidthExpression> getArgs() {
+            return args;
+        }
+
+        public OutputSizeEstimator getEstimator() {
+            return estimator;
+        }
+
+        @Override
+        public <T, V, E extends Exception> T accept(AbstractExecExprVisitor<T, V, E> visitor, V value) throws E {
+            return visitor.visitFunctionCallExpr(this, value);
+        }
+    }
+
+    public static class VarLenReadExpr extends OutputWidthExpression  {
+        ValueVectorReadExpression readExpression;
+        String name;
+
+        public VarLenReadExpr(ValueVectorReadExpression readExpression) {
+            this.readExpression = readExpression;
+            this.name = null;
+        }
+
+        public VarLenReadExpr(String name) {
+            this.readExpression = null;
+            this.name = name;
+        }
+
+        public ValueVectorReadExpression getReadExpression() {
+            return readExpression;
+        }
+
+        public String getName() {
+            return name;
+        }
+
+        @Override
+        public <T, V, E extends Exception> T accept(AbstractExecExprVisitor<T, V, E> visitor, V value) throws E {
+            return visitor.visitVarLenReadExpr(this, value);
+        }
+    }
+
+    public static class FixedLenExpr extends OutputWidthExpression {
+        int fixedWidth;
+        public FixedLenExpr(int fixedWidth) {
+            this.fixedWidth = fixedWidth;
+        }
+        public int getWidth() { return fixedWidth;}
+
+        @Override
+        public <T, V, E extends Exception> T accept(AbstractExecExprVisitor<T, V, E> visitor, V value) throws E {
+            return visitor.visitFixedLenExpr(this, value);
+        }
+    }
+
+}

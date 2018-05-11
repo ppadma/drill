@@ -152,8 +152,6 @@ public class TestOutputBatchSize extends PhysicalOpUnitTestBase {
     opTestBuilder.go();
   }
 
-
-
   @Test
   public void testFlattenFixedWidth() throws Exception {
     PhysicalOperator flatten = new FlattenPOP(null, SchemaPath.getSimplePath("c"));

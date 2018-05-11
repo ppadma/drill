@@ -18,9 +18,7 @@
 
 package org.apache.drill.exec.expr.fn.output;
 
-import org.apache.drill.common.expression.LogicalExpression;
-import org.apache.drill.exec.record.RecordBatch;
-import org.apache.drill.exec.record.RecordBatchSizer;
+import org.apache.drill.exec.physical.impl.project.OutputWidthExpression.FixedLenExpr;
 
 import java.util.List;
 
@@ -30,7 +28,6 @@ import java.util.List;
  */
 public interface OutputSizeEstimator {
 
-  int getEstimatedOutputSize(List<LogicalExpression> logicalExpressions, RecordBatchSizer recordBatchSizer,
-                             RecordBatch recordBatch);
+  int getEstimatedOutputSize(List<FixedLenExpr> args);
 
 }

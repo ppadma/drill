@@ -18,14 +18,9 @@
 
 package org.apache.drill.exec.expr.fn.output;
 
-import org.apache.drill.common.expression.LogicalExpression;
 import org.apache.drill.common.types.Types;
 import org.apache.drill.exec.expr.DrillFuncHolderExpr;
-import org.apache.drill.exec.expr.ValueVectorReadExpression;
-import org.apache.drill.exec.expr.ValueVectorWriteExpression;
-import org.apache.drill.exec.record.RecordBatch;
-import org.apache.drill.exec.record.RecordBatchSizer;
-import org.apache.drill.exec.record.TypedFieldId;
+import org.apache.drill.exec.physical.impl.project.OutputWidthExpression.FixedLenExpr;
 
 import java.util.List;
 
@@ -38,21 +33,16 @@ public class OutputSizeEstimators {
 
     private static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(OutputSizeEstimators.class);
 
-    static int getOutputSize(LogicalExpression expr, RecordBatchSizer recordBatchSizer, RecordBatch recordBatch) {
-        //KM_TBD: Move functionality as instance methods in the corresponding expr classes
-        if (expr.getMajorType().hasPrecision()) {
-            return expr.getMajorType().getPrecision();
-        } else if (expr instanceof DrillFuncHolderExpr) {
-            DrillFuncHolderExpr funcHolder = ((DrillFuncHolderExpr)expr);
-            return funcHolder.getHolder().getOutputSizeEstimate(funcHolder.args, recordBatchSizer, recordBatch);
-        } else if (expr instanceof ValueVectorReadExpression) {
-            TypedFieldId fid = ((ValueVectorReadExpression)expr).getFieldId();
-            String name = recordBatch.getSchema().getColumn(fid.getFieldIds()[0]).getName();
-            return recordBatchSizer.getColumn(name).getNetSizePerEntry();
-        } else if (expr instanceof ValueVectorWriteExpression) {
-            return getOutputSize(((ValueVectorWriteExpression)expr).getChild(), recordBatchSizer, recordBatch);
+    static OutputSizeEstimator getOutputSizeEstimator(DrillFuncHolderExpr funcHolderExpr) {
+        return funcHolderExpr.getHolder().getOutputSizeEstimator();
+    }
+
+    private static int adjustOutputSize(int outputSize, String prefix) {
+        if (outputSize > Types.MAX_VARCHAR_LENGTH || outputSize < 0 /*overflow*/) {
+            logger.warn(prefix + "Output size for expressions is too large, setting to MAX_VARCHAR_LENGTH");
+            outputSize = Types.MAX_VARCHAR_LENGTH;
         }
-        return -1;
+        return outputSize;
     }
 
     public static class ConcatOutputSizeEstimator implements OutputSizeEstimator {
@@ -65,22 +55,17 @@ public class OutputSizeEstimators {
          * If calculated size is greater than {@link Types#MAX_VARCHAR_LENGTH},
          * it is replaced with {@link Types#MAX_VARCHAR_LENGTH}.
          *
-         * @param logicalExpressions logical expressions
+         * @param args
          * @return return type
          */
         @Override
-        public int getEstimatedOutputSize(List<LogicalExpression> logicalExpressions, RecordBatchSizer recordBatchSizer,
-                                          RecordBatch recordBatch) {
+        public int getEstimatedOutputSize(List<FixedLenExpr> args) {
             int outputSize = 0;
-            for (LogicalExpression expr : logicalExpressions) {
-                outputSize += getOutputSize(expr, recordBatchSizer, recordBatch);
+            for (FixedLenExpr expr : args) {
+                outputSize += expr.getWidth();
             }
-            if (outputSize > Types.MAX_VARCHAR_LENGTH || outputSize < 0 /*overflow*/) {
-                logger.warn("Output size for expressions is too large, setting to MAX_VARCHAR_LENGTH");
-                outputSize = Types.MAX_VARCHAR_LENGTH;
-            }
+            outputSize = adjustOutputSize(outputSize, "ConcatOutputSizeEstimator:");
             return outputSize;
-            //return builder.setPrecision(outputSize > Types.MAX_VARCHAR_LENGTH ? Types.MAX_VARCHAR_LENGTH : totalPrecision).build();
         }
     }
 
@@ -94,23 +79,18 @@ public class OutputSizeEstimators {
          * If calculated size is greater than {@link Types#MAX_VARCHAR_LENGTH},
          * it is replaced with {@link Types#MAX_VARCHAR_LENGTH}.
          *
-         * @param logicalExpressions logical expressions
+         * @param args logical expressions
          * @return return type
          */
         @Override
-        public int getEstimatedOutputSize(List<LogicalExpression> logicalExpressions, RecordBatchSizer recordBatchSizer,
-                                          RecordBatch recordBatch) {
+        public int getEstimatedOutputSize(List<FixedLenExpr> args) {
             int outputSize = 0;
-            if (logicalExpressions.size() != 1) {
+            if (args.size() != 1) {
                 throw new IllegalArgumentException();
             }
-            outputSize = getOutputSize(logicalExpressions.get(0), recordBatchSizer, recordBatch);
-            if (outputSize > Types.MAX_VARCHAR_LENGTH || outputSize < 0 /*overflow*/) {
-                logger.warn("Output size for expressions is too large, setting to MAX_VARCHAR_LENGTH");
-                outputSize = Types.MAX_VARCHAR_LENGTH;
-            }
+            outputSize = args.get(0).getWidth();
+            outputSize = adjustOutputSize(outputSize, "CloneOutputSizeEstimator");
             return outputSize;
-            //return builder.setPrecision(outputSize > Types.MAX_VARCHAR_LENGTH ? Types.MAX_VARCHAR_LENGTH : totalPrecision).build();
         }
     }
 
