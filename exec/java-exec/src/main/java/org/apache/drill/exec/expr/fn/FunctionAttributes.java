@@ -54,8 +54,8 @@ public class FunctionAttributes {
     return template.returnType();
   }
 
-  public FunctionTemplate.OutputSizeEstimate getOutputSizeEstimate() {
-    return template.outputSizeEstimate();
+  public FunctionTemplate.OutputSizeCalculatorType getOutputSizeCalculator() {
+    return template.outputSizeCalculatorType();
   }
 
   public NullHandling getNullHandling() {
@@ -97,6 +97,10 @@ public class FunctionAttributes {
 
   public boolean isNiladic() {
     return template.isNiladic();
+  }
+
+  public int variableOutoputSizeEstimate() {
+    return  template.variableOutputSizeEstimate();
   }
 
   public boolean checkPrecisionRange() { return template.checkPrecisionRange(); }

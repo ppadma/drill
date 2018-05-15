@@ -21,6 +21,7 @@ import org.apache.drill.common.expression.LogicalExpression;
 import org.apache.drill.common.types.TypeProtos.DataMode;
 import org.apache.drill.common.types.TypeProtos.MajorType;
 import org.apache.drill.common.types.TypeProtos.MinorType;
+import org.apache.drill.exec.expr.AbstractExecExprVisitor;
 import org.apache.drill.exec.expr.TypeHelper;
 import org.apache.drill.exec.physical.impl.project.OutputWidthExpression.VarLenReadExpr;
 import org.apache.drill.exec.record.MaterializedField;
@@ -30,6 +31,7 @@ import org.apache.drill.exec.record.RecordBatchSizer;
 import org.apache.drill.exec.record.TypedFieldId;
 import org.apache.drill.exec.vector.FixedWidthVector;
 import org.apache.drill.exec.vector.UInt1Vector;
+import org.apache.drill.exec.vector.UInt4Vector;
 import org.apache.drill.exec.vector.ValueVector;
 import org.apache.drill.exec.physical.impl.project.OutputWidthExpression.FixedLenExpr;
 
@@ -37,13 +39,15 @@ import org.apache.drill.exec.physical.impl.project.OutputWidthExpression.FixedLe
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.apache.drill.exec.vector.AllocationHelper.STD_REPETITION_FACTOR;
+
 public class ProjectMemoryManager extends RecordBatchMemoryManager {
 
     RecordBatch incomingBatch = null;
     ProjectRecordBatch outgoingBatch = null;
 
     int rowWidth = 0;
-    Map<String, ColumnSizeInfo> outputColumnSizes;
+    Map<String, ColumnWidthInfo> outputColumnSizes;
     int variableWidthColumnCount = 0;
     int fixedWidthColumnCount = 0;
 
@@ -57,14 +61,14 @@ public class ProjectMemoryManager extends RecordBatchMemoryManager {
         NEW
     }
 
-    class ColumnSizeInfo {
+    class ColumnWidthInfo {
         MaterializedField materializedField;
         OutputWidthExpression outputExpression;
         int width;
         WidthType widthType;
         OutputColumnType outputColumnType;
 
-        ColumnSizeInfo (ValueVector vv,
+        ColumnWidthInfo(ValueVector vv,
                         OutputWidthExpression outputWidthExpression,
                         OutputColumnType outputColumnType,
                         WidthType widthType,
@@ -74,7 +78,6 @@ public class ProjectMemoryManager extends RecordBatchMemoryManager {
             this.width = fieldWidth;
             this.outputColumnType = outputColumnType;
             this.widthType = widthType;
-
         }
 
         public OutputWidthExpression getOutputExpression() { return outputExpression; }
@@ -96,15 +99,16 @@ public class ProjectMemoryManager extends RecordBatchMemoryManager {
         this.outgoingBatch = outgoingBatch;
     }
 
-    public static void Unimplemented(String message) {
-        throw new IllegalStateException(message);
-    }
-
     public ProjectMemoryManager(int configuredOutputSize) {
         super(configuredOutputSize);
         outputColumnSizes = new HashMap<>();
-        this.outgoingBatch = outgoingBatch;
     }
+
+    public boolean isComplex(MajorType majorType) {
+        MinorType minorType = majorType.getMinorType();
+        return minorType == MinorType.MAP || minorType == MinorType.UNION || minorType == MinorType.LIST;
+    }
+
 
     boolean isFixedWidth(TypedFieldId fieldId) {
         ValueVector vv = getOutgoingValueVector(fieldId);
@@ -127,21 +131,27 @@ public class ProjectMemoryManager extends RecordBatchMemoryManager {
        return (vv instanceof FixedWidthVector);
     }
 
+    static final int BIT_VECTOR_WIDTH = UInt1Vector.VALUE_WIDTH;
+    static final int OFFSET_VECTOR_WIDTH = UInt4Vector.VALUE_WIDTH;
+
     static int getWidthOfFixedWidthType(MajorType majorType) {
-        //KM_TBD: Reoeated types ?
-        //final int OFFSET_VECTOR_WIDTH = UInt4Vector.VALUE_WIDTH;
-        final int BIT_VECTOR_WIDTH = UInt1Vector.VALUE_WIDTH;
         DataMode mode = majorType.getMode();
-        final boolean isOptional = (mode == DataMode.OPTIONAL);
-        final boolean isRepeated = (mode == DataMode.REPEATED);
         MinorType minorType = majorType.getMinorType();
         final boolean isVariableWidth  = (minorType == MinorType.VARCHAR || minorType == MinorType.VAR16CHAR
                                                                     || minorType == MinorType.VARBINARY);
 
-        assert !isVariableWidth && !isRepeated;
+        if (isVariableWidth) {
+            throw new IllegalArgumentException("getWidthOfFixedWidthType() cannot handle variable width types");
+        }
+
+        final boolean isOptional = (mode == DataMode.OPTIONAL);
+        final boolean isRepeated = (mode == DataMode.REPEATED);
+
         int stdDataSize = TypeHelper.getSize(majorType);
 
         if (isOptional) { stdDataSize += BIT_VECTOR_WIDTH; }
+
+        if (isRepeated) { stdDataSize = (stdDataSize * STD_REPETITION_FACTOR) + OFFSET_VECTOR_WIDTH; }
 
         return stdDataSize;
     }
@@ -170,18 +180,21 @@ public class ProjectMemoryManager extends RecordBatchMemoryManager {
             addFixedWidthField(vv, outputColumnType);
         } else {
             variableWidthColumnCount++;
-            ColumnSizeInfo columnSizeInfo;
+            ColumnWidthInfo columnWidthInfo;
             if(outputColumnType == OutputColumnType.TRANSFER) {
                 VarLenReadExpr readExpr = new VarLenReadExpr(vv.getField().getName());
-                columnSizeInfo = new ColumnSizeInfo(vv, readExpr, outputColumnType,
+                columnWidthInfo = new ColumnWidthInfo(vv, readExpr, outputColumnType,
                         WidthType.VARIABLE, -1); //fieldWidth has to be obtained from the RecordBatchSizer
+            } else if (isComplex(vv.getField().getType())) {
+                // Complex types are not yet supported. Treat complex types as 50 bytes wide
+                columnWidthInfo = new ColumnWidthInfo(vv, null, outputColumnType, WidthType.FIXED, 50);
             } else {
                 OutputWidthVisitorState state = new OutputWidthVisitorState(this, outputColumnType);
                 OutputWidthExpression outputWidthExpression = logicalExpression.accept(new OutputWidthVisitor(), state);
-                columnSizeInfo = new ColumnSizeInfo(vv, outputWidthExpression, outputColumnType,
-                        WidthType.VARIABLE, -1); //fieldWidth has to be obtained from the RecordBatchSizer
+                columnWidthInfo = new ColumnWidthInfo(vv, outputWidthExpression, outputColumnType,
+                        WidthType.VARIABLE, -1); //fieldWidth has to be obtained from the outputWidthExpression
             }
-            outputColumnSizes.put(columnSizeInfo.getName(), columnSizeInfo);
+            outputColumnSizes.put(columnWidthInfo.getName(), columnWidthInfo);
         }
     }
 
@@ -195,10 +208,10 @@ public class ProjectMemoryManager extends RecordBatchMemoryManager {
     void addFixedWidthField(ValueVector vv, OutputColumnType outputColumnType) {
         assert isFixedWidth(vv);
         int fixedFieldWidth = getWidthOfFixedWidthType(vv);
-        ColumnSizeInfo columnSizeInfo = new ColumnSizeInfo(vv, null, outputColumnType, WidthType.FIXED,
+        ColumnWidthInfo columnWidthInfo = new ColumnWidthInfo(vv, null, outputColumnType, WidthType.FIXED,
                                                            fixedFieldWidth);
-        outputColumnSizes.put(columnSizeInfo.getName(), columnSizeInfo);
-        //rowWidth += columnSizeInfo.width;
+        outputColumnSizes.put(columnWidthInfo.getName(), columnWidthInfo);
+        //rowWidth += columnWidthInfo.width;
     }
 
     @Override
@@ -207,13 +220,13 @@ public class ProjectMemoryManager extends RecordBatchMemoryManager {
         setRecordBatchSizer(batchSizer);
         rowWidth = 0;
         for (String expr : outputColumnSizes.keySet()) {
-            ColumnSizeInfo columnSizeInfo = outputColumnSizes.get(expr);
+            ColumnWidthInfo columnWidthInfo = outputColumnSizes.get(expr);
             int width = -1;
-            if (columnSizeInfo.isFixedWidth()) {
-                width = columnSizeInfo.getWidth();
+            if (columnWidthInfo.isFixedWidth()) {
+                width = columnWidthInfo.getWidth();
             } else {
-                OutputWidthExpression savedWidthExpr = columnSizeInfo.getOutputExpression();
-                OutputColumnType columnType = columnSizeInfo.getOutputColumnType();
+                OutputWidthExpression savedWidthExpr = columnWidthInfo.getOutputExpression();
+                OutputColumnType columnType = columnWidthInfo.getOutputColumnType();
                 OutputWidthVisitorState state = new OutputWidthVisitorState(this, columnType);
                 OutputWidthExpression reducedExpr = savedWidthExpr.accept(new OutputWidthVisitor(), state);
                 assert reducedExpr instanceof FixedLenExpr;

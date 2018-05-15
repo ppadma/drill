@@ -19,7 +19,6 @@
 package org.apache.drill.exec.expr.fn.output;
 
 import org.apache.drill.common.types.Types;
-import org.apache.drill.exec.expr.DrillFuncHolderExpr;
 import org.apache.drill.exec.physical.impl.project.OutputWidthExpression.FixedLenExpr;
 
 import java.util.List;
@@ -29,15 +28,11 @@ import java.util.List;
  * {@link org.apache.drill.exec.expr.annotations.FunctionTemplate.ReturnType#CONCAT}.
  */
 
-public class OutputSizeEstimators {
+public class OutputWidthCalculators {
 
-    private static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(OutputSizeEstimators.class);
+    private static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(OutputWidthCalculators.class);
 
-    static OutputSizeEstimator getOutputSizeEstimator(DrillFuncHolderExpr funcHolderExpr) {
-        return funcHolderExpr.getHolder().getOutputSizeEstimator();
-    }
-
-    private static int adjustOutputSize(int outputSize, String prefix) {
+    private static int adjustOutputWidth(int outputSize, String prefix) {
         if (outputSize > Types.MAX_VARCHAR_LENGTH || outputSize < 0 /*overflow*/) {
             logger.warn(prefix + "Output size for expressions is too large, setting to MAX_VARCHAR_LENGTH");
             outputSize = Types.MAX_VARCHAR_LENGTH;
@@ -45,13 +40,12 @@ public class OutputSizeEstimators {
         return outputSize;
     }
 
-    public static class ConcatOutputSizeEstimator implements OutputSizeEstimator {
+    public static class ConcatOutputWidthCalculator implements OutputWidthCalculator {
 
-        public static final ConcatOutputSizeEstimator INSTANCE = new ConcatOutputSizeEstimator();
+        public static final ConcatOutputWidthCalculator INSTANCE = new ConcatOutputWidthCalculator();
 
         /**
-         * Defines function's output size estimate, which is caluclated as
-         * sum of input sizes
+         * Defines a function's output size estimate as sum of input sizes
          * If calculated size is greater than {@link Types#MAX_VARCHAR_LENGTH},
          * it is replaced with {@link Types#MAX_VARCHAR_LENGTH}.
          *
@@ -59,23 +53,26 @@ public class OutputSizeEstimators {
          * @return return type
          */
         @Override
-        public int getEstimatedOutputSize(List<FixedLenExpr> args) {
+        public int getOutputWidth(List<FixedLenExpr> args) {
             int outputSize = 0;
+            if (args == null || args.size() == 0) {
+                throw new IllegalArgumentException();
+            }
             for (FixedLenExpr expr : args) {
                 outputSize += expr.getWidth();
             }
-            outputSize = adjustOutputSize(outputSize, "ConcatOutputSizeEstimator:");
+            outputSize = adjustOutputWidth(outputSize, "ConcatOutputWidthCalculator:");
             return outputSize;
         }
     }
 
-    public static class CloneOutputSizeEstimator implements OutputSizeEstimator {
+    public static class CloneOutputWidthCalculator implements OutputWidthCalculator {
 
-        public static final CloneOutputSizeEstimator INSTANCE = new CloneOutputSizeEstimator();
+        public static final CloneOutputWidthCalculator INSTANCE = new CloneOutputWidthCalculator();
 
         /**
-         * Defines function's output size estimate, which is caluclated as
-         * sum of input sizes
+         * Defines a function's output size estimate as the same length as the first
+         * argument. In other words, treats the function as a CLONE function
          * If calculated size is greater than {@link Types#MAX_VARCHAR_LENGTH},
          * it is replaced with {@link Types#MAX_VARCHAR_LENGTH}.
          *
@@ -83,15 +80,34 @@ public class OutputSizeEstimators {
          * @return return type
          */
         @Override
-        public int getEstimatedOutputSize(List<FixedLenExpr> args) {
+        public int getOutputWidth(List<FixedLenExpr> args) {
             int outputSize = 0;
-            if (args.size() != 1) {
+            if (args == null || args.size() != 1) {
                 throw new IllegalArgumentException();
             }
             outputSize = args.get(0).getWidth();
-            outputSize = adjustOutputSize(outputSize, "CloneOutputSizeEstimator");
+            outputSize = adjustOutputWidth(outputSize, "CloneOutputWidthCalculator");
             return outputSize;
         }
     }
 
+    public static class DefaultOutputWidthCalculator implements OutputWidthCalculator {
+
+        public static final DefaultOutputWidthCalculator INSTANCE = new DefaultOutputWidthCalculator();
+
+        /**
+         * Defines a function's output size estimate as some fixed value specified via an option
+         * If calculated size is greater than {@link Types#MAX_VARCHAR_LENGTH},
+         * it is replaced with {@link Types#MAX_VARCHAR_LENGTH}.
+         *
+         * @param args logical expressions
+         * @return return type
+         */
+        @Override
+        public int getOutputWidth(List<FixedLenExpr> args) {
+            //KM_TBD: Read value from options
+            int outputSize = adjustOutputWidth(50, "DefaultOutputWidthCalculator:");
+            return outputSize;
+        }
+    }
 }

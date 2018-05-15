@@ -23,8 +23,8 @@ import org.apache.drill.exec.expr.fn.FunctionAttributes;
 import org.apache.drill.exec.expr.fn.output.ConcatReturnTypeInference;
 import org.apache.drill.exec.expr.fn.output.DecimalReturnTypeInference;
 import org.apache.drill.exec.expr.fn.output.DefaultReturnTypeInference;
-import org.apache.drill.exec.expr.fn.output.OutputSizeEstimator;
-import org.apache.drill.exec.expr.fn.output.OutputSizeEstimators;
+import org.apache.drill.exec.expr.fn.output.OutputWidthCalculator;
+import org.apache.drill.exec.expr.fn.output.OutputWidthCalculators;
 import org.apache.drill.exec.expr.fn.output.PadReturnTypeInference;
 import org.apache.drill.exec.expr.fn.output.ReturnTypeInference;
 import org.apache.drill.exec.expr.fn.output.SameInOutLengthReturnTypeInference;
@@ -90,25 +90,34 @@ public @interface FunctionTemplate {
   boolean isNiladic() default false;
   boolean checkPrecisionRange() default false;
 
+  int VARIABLE_OUTPUT_SIZE_ESTIMATE_DEFAULT = -1;
+
+  int variableOutputSizeEstimate() default VARIABLE_OUTPUT_SIZE_ESTIMATE_DEFAULT;
+
+
 
   /**
    * This enum will be used to estimate the average size of the output
    * produced by a function that produces variable length output
    */
-  public enum OutputSizeEstimate {
-    DEFAULT(OutputSizeEstimators.ConcatOutputSizeEstimator.INSTANCE),
-    CLONE(OutputSizeEstimators.CloneOutputSizeEstimator.INSTANCE),
-    CONCAT(OutputSizeEstimators.ConcatOutputSizeEstimator.INSTANCE);
-    OutputSizeEstimator estimator;
+  public enum OutputSizeCalculatorType {
+    DEFAULT(OutputWidthCalculators.DefaultOutputWidthCalculator.INSTANCE),
+    CLONE(OutputWidthCalculators.CloneOutputWidthCalculator.INSTANCE),
+    CONCAT(OutputWidthCalculators.ConcatOutputWidthCalculator.INSTANCE),
+    // Custom calculator will default to DEFAULT
+    // A place holder marker on functions until support for CUSTOM calculators is implemented
+    CUSTOM(OutputWidthCalculators.DefaultOutputWidthCalculator.INSTANCE),
+    CUSTOM2(OutputWidthCalculators.CloneOutputWidthCalculator.INSTANCE);
+    OutputWidthCalculator estimator;
 
-    OutputSizeEstimate(OutputSizeEstimator estimator) {
+    OutputSizeCalculatorType(OutputWidthCalculator estimator) {
       this.estimator = estimator;
     }
 
-    public OutputSizeEstimator getOutputSizeEstimator() { return estimator; }
+    public OutputWidthCalculator getOutputSizeCalculator() { return estimator; }
   }
 
-  OutputSizeEstimate outputSizeEstimate() default OutputSizeEstimate.DEFAULT;
+  OutputSizeCalculatorType outputSizeCalculatorType() default OutputSizeCalculatorType.DEFAULT;
 
   enum NullHandling {
     /**

@@ -1,3 +1,21 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package org.apache.drill.exec.physical.impl.project;
 
 import org.apache.drill.common.expression.FunctionHolderExpression;
@@ -9,7 +27,9 @@ import org.apache.drill.exec.expr.AbstractExecExprVisitor;
 import org.apache.drill.exec.expr.DrillFuncHolderExpr;
 import org.apache.drill.exec.expr.ValueVectorReadExpression;
 import org.apache.drill.exec.expr.ValueVectorWriteExpression;
-import org.apache.drill.exec.expr.fn.output.OutputSizeEstimator;
+import org.apache.drill.exec.expr.annotations.FunctionTemplate;
+import org.apache.drill.exec.expr.fn.DrillFuncHolder;
+import org.apache.drill.exec.expr.fn.output.OutputWidthCalculator;
 import org.apache.drill.exec.physical.impl.project.OutputWidthExpression.FixedLenExpr;
 import org.apache.drill.exec.physical.impl.project.OutputWidthExpression.FunctionCallExpr;
 import org.apache.drill.exec.physical.impl.project.OutputWidthExpression.VarLenReadExpr;
@@ -27,7 +47,14 @@ public class OutputWidthVisitor extends AbstractExecExprVisitor<OutputWidthExpre
         OutputWidthExpression fixedWidth = getFixedLenExpr(holderExpr.getMajorType());
         if (fixedWidth != null) { return fixedWidth; }
         //KM_TBD Handling for HiveFunctionHolder
-        OutputSizeEstimator estimator = ((DrillFuncHolderExpr)holderExpr).getHolder().getOutputSizeEstimator();
+        final DrillFuncHolder holder = ((DrillFuncHolderExpr) holderExpr).getHolder();
+        //KM_TBD: move constant val to a fun in template
+        // Use the user-provided estimate
+        int estimate = holder.variableOuputSizeEstimate();
+        if (estimate != FunctionTemplate.VARIABLE_OUTPUT_SIZE_ESTIMATE_DEFAULT) {
+            return new FixedLenExpr(estimate);
+        }
+        OutputWidthCalculator estimator = holder.getOutputSizeCalculator();
         final int argSize = holderExpr.args.size();
         ArrayList<OutputWidthExpression> arguments = null;
         if (argSize != 0) {
@@ -36,7 +63,7 @@ public class OutputWidthVisitor extends AbstractExecExprVisitor<OutputWidthExpre
                 arguments.add(expr.accept(this, state));
             }
         }
-        return new  FunctionCallExpr(holderExpr, estimator, arguments);
+        return new FunctionCallExpr(holderExpr, estimator, arguments);
     }
 
     @Override
@@ -97,16 +124,19 @@ public class OutputWidthVisitor extends AbstractExecExprVisitor<OutputWidthExpre
     public OutputWidthExpression visitFunctionCallExpr(FunctionCallExpr functionCallExpr, OutputWidthVisitorState state)
                                                         throws RuntimeException {
         ArrayList<OutputWidthExpression> args = functionCallExpr.getArgs();
-        ArrayList<FixedLenExpr> estimatedArgs = new ArrayList<>(args.size());
-        for (OutputWidthExpression expr : args) {
-            FixedLenExpr fixedLenExpr = (FixedLenExpr) expr.accept(this, state);
-            estimatedArgs.add(fixedLenExpr);
+        ArrayList<FixedLenExpr> estimatedArgs = null;
+
+        if (args != null && args.size() != 0) {
+            estimatedArgs = new ArrayList<>(args.size());
+            for (OutputWidthExpression expr : args) {
+                FixedLenExpr fixedLenExpr = (FixedLenExpr) expr.accept(this, state);
+                estimatedArgs.add(fixedLenExpr);
+            }
         }
-        OutputSizeEstimator estimator = functionCallExpr.getEstimator();
-        int estimatedSize = estimator.getEstimatedOutputSize(estimatedArgs);
+        OutputWidthCalculator estimator = functionCallExpr.getEstimator();
+        int estimatedSize = estimator.getOutputWidth(estimatedArgs);
         return new FixedLenExpr(estimatedSize);
     }
-
 
     private OutputWidthExpression getFixedLenExpr(MajorType majorType) {
         MajorType type = majorType;

@@ -39,7 +39,7 @@ import org.apache.drill.exec.expr.ClassGenerator.HoldingContainer;
 import org.apache.drill.exec.expr.DrillFuncHolderExpr;
 import org.apache.drill.exec.expr.TypeHelper;
 import org.apache.drill.exec.expr.annotations.FunctionTemplate.NullHandling;
-import org.apache.drill.exec.expr.fn.output.OutputSizeEstimator;
+import org.apache.drill.exec.expr.fn.output.OutputWidthCalculator;
 import org.apache.drill.exec.ops.UdfUtilities;
 import org.apache.drill.exec.vector.complex.reader.FieldReader;
 
@@ -99,6 +99,10 @@ public abstract class DrillFuncHolder extends AbstractFuncHolder {
 
   public boolean isNiladic() {
     return attributes.isNiladic();
+  }
+
+  public int variableOuputSizeEstimate(){
+    return attributes.variableOutoputSizeEstimate();
   }
 
   /**
@@ -263,8 +267,8 @@ public abstract class DrillFuncHolder extends AbstractFuncHolder {
     return attributes.getReturnType().getType(logicalExpressions, attributes);
   }
 
-  public OutputSizeEstimator getOutputSizeEstimator() {
-    return attributes.getOutputSizeEstimate().getOutputSizeEstimator();
+  public OutputWidthCalculator getOutputSizeCalculator() {
+    return attributes.getOutputSizeCalculator().getOutputSizeCalculator();
   }
 
   public NullHandling getNullHandling() {

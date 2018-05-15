@@ -25,7 +25,7 @@ import org.apache.drill.exec.expr.annotations.FunctionTemplate;
 import org.apache.drill.exec.expr.annotations.FunctionTemplate.FunctionScope;
 import org.apache.drill.exec.expr.annotations.FunctionTemplate.NullHandling;
 import org.apache.drill.exec.expr.annotations.FunctionTemplate.ReturnType;
-import org.apache.drill.exec.expr.annotations.FunctionTemplate.OutputSizeEstimate;
+import org.apache.drill.exec.expr.annotations.FunctionTemplate.OutputSizeCalculatorType;
 import org.apache.drill.exec.expr.annotations.Output;
 import org.apache.drill.exec.expr.annotations.Param;
 import org.apache.drill.exec.expr.annotations.Workspace;
@@ -35,6 +35,7 @@ import org.apache.drill.exec.expr.holders.IntHolder;
 import org.apache.drill.exec.expr.holders.NullableVarCharHolder;
 import org.apache.drill.exec.expr.holders.VarBinaryHolder;
 import org.apache.drill.exec.expr.holders.VarCharHolder;
+import org.apache.drill.exec.physical.impl.project.OutputSizeEstimateConstants;
 
 import javax.inject.Inject;
 import java.nio.charset.Charset;
@@ -210,7 +211,8 @@ public class StringFunctions{
   /*
    * Replace all substring that match the regular expression with replacement.
    */
-  @FunctionTemplate(name = "regexp_replace", scope = FunctionScope.SIMPLE, nulls = NullHandling.NULL_IF_NULL)
+  @FunctionTemplate(name = "regexp_replace", scope = FunctionScope.SIMPLE, nulls = NullHandling.NULL_IF_NULL,
+                    outputSizeCalculatorType = OutputSizeCalculatorType.CUSTOM2)
   public static class RegexpReplace implements DrillSimpleFunc {
 
     @Param VarCharHolder input;
@@ -382,7 +384,8 @@ public class StringFunctions{
   }
 
 
-  @FunctionTemplate(name = "split_part", scope = FunctionScope.SIMPLE, nulls = NullHandling.NULL_IF_NULL)
+  @FunctionTemplate(name = "split_part", scope = FunctionScope.SIMPLE, nulls = NullHandling.NULL_IF_NULL,
+                    outputSizeCalculatorType = OutputSizeCalculatorType.CUSTOM)
   public static class SplitPart implements DrillSimpleFunc {
     @Param  VarCharHolder str;
     @Param  VarCharHolder splitter;
@@ -476,7 +479,8 @@ public class StringFunctions{
   @FunctionTemplate(name = "lower",
       scope = FunctionScope.SIMPLE,
       returnType = ReturnType.SAME_IN_OUT_LENGTH,
-      nulls = NullHandling.NULL_IF_NULL)
+      nulls = NullHandling.NULL_IF_NULL,
+      outputSizeCalculatorType = OutputSizeCalculatorType.CLONE)
   public static class LowerCase implements DrillSimpleFunc {
     @Param VarCharHolder input;
     @Output VarCharHolder out;
@@ -505,7 +509,7 @@ public class StringFunctions{
   @FunctionTemplate(name = "upper",
       scope = FunctionScope.SIMPLE,
       returnType = ReturnType.SAME_IN_OUT_LENGTH,
-      outputSizeEstimate = OutputSizeEstimate.CLONE,
+      outputSizeCalculatorType = OutputSizeCalculatorType.CLONE,
       nulls = NullHandling.NULL_IF_NULL)
   public static class UpperCase implements DrillSimpleFunc {
 
@@ -534,7 +538,8 @@ public class StringFunctions{
   // Follow Postgre.
   //  -- Valid "offset": [1, string_length],
   //  -- Valid "length": [1, up to string_length - offset + 1], if length > string_length - offset +1, get the substr up to the string_lengt.
-  @FunctionTemplate(names = {"substring", "substr"}, scope = FunctionScope.SIMPLE, nulls = NullHandling.NULL_IF_NULL)
+  @FunctionTemplate(names = {"substring", "substr"}, scope = FunctionScope.SIMPLE, nulls = NullHandling.NULL_IF_NULL,
+                    outputSizeCalculatorType = OutputSizeCalculatorType.CUSTOM2)
   public static class Substring implements DrillSimpleFunc {
     @Param VarCharHolder string;
     @Param BigIntHolder offset;
@@ -572,7 +577,8 @@ public class StringFunctions{
     }
   }
 
-  @FunctionTemplate(names = {"substring", "substr"}, scope = FunctionScope.SIMPLE, nulls = NullHandling.NULL_IF_NULL)
+  @FunctionTemplate(names = {"substring", "substr"}, scope = FunctionScope.SIMPLE, nulls = NullHandling.NULL_IF_NULL,
+                    outputSizeCalculatorType = OutputSizeCalculatorType.CUSTOM2)
   public static class SubstringOffset implements DrillSimpleFunc {
     @Param VarCharHolder string;
     @Param BigIntHolder offset;
@@ -605,7 +611,8 @@ public class StringFunctions{
     }
   }
 
-  @FunctionTemplate(names = {"substring", "substr" }, scope = FunctionScope.SIMPLE, nulls = NullHandling.INTERNAL)
+  @FunctionTemplate(names = {"substring", "substr" }, scope = FunctionScope.SIMPLE, nulls = NullHandling.INTERNAL,
+                    outputSizeCalculatorType = OutputSizeCalculatorType.CUSTOM)
   public static class SubstringRegex implements DrillSimpleFunc {
     @Param VarCharHolder input;
     @Param(constant=true) VarCharHolder pattern;
@@ -637,7 +644,8 @@ public class StringFunctions{
     }
   }
 
-  @FunctionTemplate(names = {"substring", "substr" }, scope = FunctionScope.SIMPLE, nulls = NullHandling.INTERNAL)
+  @FunctionTemplate(names = {"substring", "substr" }, scope = FunctionScope.SIMPLE, nulls = NullHandling.INTERNAL,
+                    outputSizeCalculatorType = OutputSizeCalculatorType.CUSTOM)
   public static class SubstringRegexNullable implements DrillSimpleFunc {
     @Param NullableVarCharHolder input;
     @Param(constant=true) VarCharHolder pattern;
@@ -679,7 +687,8 @@ public class StringFunctions{
   // If length > total charcounts, return the whole string.
   // If length = 0, return empty
   // If length < 0, and |length| > total charcounts, return empty.
-  @FunctionTemplate(name = "left", scope = FunctionScope.SIMPLE, nulls = NullHandling.NULL_IF_NULL)
+  @FunctionTemplate(name = "left", scope = FunctionScope.SIMPLE, nulls = NullHandling.NULL_IF_NULL,
+                    outputSizeCalculatorType = OutputSizeCalculatorType.CUSTOM)
   public static class Left implements DrillSimpleFunc {
     @Param VarCharHolder string;
     @Param BigIntHolder length;
@@ -716,7 +725,8 @@ public class StringFunctions{
   }
 
   //Return last 'length' characters in the string. When 'length' is negative, return all but first |length| characters.
-  @FunctionTemplate(name = "right", scope = FunctionScope.SIMPLE, nulls = NullHandling.NULL_IF_NULL)
+  @FunctionTemplate(name = "right", scope = FunctionScope.SIMPLE, nulls = NullHandling.NULL_IF_NULL,
+                    outputSizeCalculatorType = OutputSizeCalculatorType.CUSTOM)
   public static class Right implements DrillSimpleFunc {
     @Param VarCharHolder string;
     @Param BigIntHolder length;
@@ -763,7 +773,8 @@ public class StringFunctions{
   @FunctionTemplate(name = "initcap",
       scope = FunctionScope.SIMPLE,
       returnType = ReturnType.SAME_IN_OUT_LENGTH,
-      nulls = NullHandling.NULL_IF_NULL)
+      nulls = NullHandling.NULL_IF_NULL,
+      outputSizeCalculatorType = OutputSizeCalculatorType.CLONE)
   public static class InitCap implements DrillSimpleFunc {
     @Param VarCharHolder input;
     @Output VarCharHolder out;
@@ -784,7 +795,8 @@ public class StringFunctions{
   }
 
   //Replace all occurrences in 'text' of substring 'from' with substring 'to'
-  @FunctionTemplate(name = "replace", scope = FunctionScope.SIMPLE, nulls = NullHandling.NULL_IF_NULL)
+  @FunctionTemplate(name = "replace", scope = FunctionScope.SIMPLE, nulls = NullHandling.NULL_IF_NULL,
+                    outputSizeCalculatorType = OutputSizeCalculatorType.CUSTOM2)
   public static class Replace implements DrillSimpleFunc {
     @Param  VarCharHolder text;
     @Param  VarCharHolder from;
@@ -851,7 +863,8 @@ public class StringFunctions{
   @FunctionTemplate(name = "lpad",
       scope = FunctionScope.SIMPLE,
       returnType = ReturnType.PAD,
-      nulls = NullHandling.NULL_IF_NULL)
+      nulls = NullHandling.NULL_IF_NULL,
+      outputSizeCalculatorType = OutputSizeCalculatorType.CUSTOM)
   public static class Lpad implements DrillSimpleFunc {
     @Param  VarCharHolder text;
     @Param  BigIntHolder length;
@@ -929,7 +942,8 @@ public class StringFunctions{
   @FunctionTemplate(name = "lpad",
       scope = FunctionScope.SIMPLE,
       returnType = ReturnType.PAD,
-      nulls = NullHandling.NULL_IF_NULL)
+      nulls = NullHandling.NULL_IF_NULL,
+      outputSizeCalculatorType = OutputSizeCalculatorType.CUSTOM)
   public static class LpadTwoArg implements DrillSimpleFunc {
     @Param  VarCharHolder text;
     @Param  BigIntHolder length;
@@ -991,7 +1005,8 @@ public class StringFunctions{
   @FunctionTemplate(name = "rpad",
       scope = FunctionScope.SIMPLE,
       returnType = ReturnType.PAD,
-      nulls = NullHandling.NULL_IF_NULL)
+      nulls = NullHandling.NULL_IF_NULL,
+      outputSizeCalculatorType = OutputSizeCalculatorType.CUSTOM)
   public static class Rpad implements DrillSimpleFunc {
     @Param  VarCharHolder text;
     @Param  BigIntHolder length;
@@ -1072,7 +1087,8 @@ public class StringFunctions{
   @FunctionTemplate(name = "rpad",
       scope = FunctionScope.SIMPLE,
       returnType = ReturnType.PAD,
-      nulls = NullHandling.NULL_IF_NULL)
+      nulls = NullHandling.NULL_IF_NULL,
+      outputSizeCalculatorType = OutputSizeCalculatorType.CUSTOM)
   public static class RpadTwoArg implements DrillSimpleFunc {
     @Param  VarCharHolder text;
     @Param  BigIntHolder length;
@@ -1133,7 +1149,8 @@ public class StringFunctions{
   /**
    * Remove the longest string containing only characters from "from"  from the start of "text"
    */
-  @FunctionTemplate(name = "ltrim", scope = FunctionScope.SIMPLE, nulls = NullHandling.NULL_IF_NULL)
+  @FunctionTemplate(name = "ltrim", scope = FunctionScope.SIMPLE, nulls = NullHandling.NULL_IF_NULL,
+                    outputSizeCalculatorType = OutputSizeCalculatorType.CUSTOM2)
   public static class Ltrim implements DrillSimpleFunc {
     @Param  VarCharHolder text;
     @Param  VarCharHolder from;
@@ -1166,7 +1183,8 @@ public class StringFunctions{
   /**
    * Remove the longest string containing only character " " from the start of "text"
    */
-  @FunctionTemplate(name = "ltrim", scope = FunctionScope.SIMPLE, nulls = NullHandling.NULL_IF_NULL)
+  @FunctionTemplate(name = "ltrim", scope = FunctionScope.SIMPLE, nulls = NullHandling.NULL_IF_NULL,
+                    outputSizeCalculatorType = OutputSizeCalculatorType.CUSTOM2)
   public static class LtrimOneArg implements DrillSimpleFunc {
     @Param  VarCharHolder text;
 
@@ -1196,7 +1214,8 @@ public class StringFunctions{
   /**
    * Remove the longest string containing only characters from "from"  from the end of "text"
    */
-  @FunctionTemplate(name = "rtrim", scope = FunctionScope.SIMPLE, nulls = NullHandling.NULL_IF_NULL)
+  @FunctionTemplate(name = "rtrim", scope = FunctionScope.SIMPLE, nulls = NullHandling.NULL_IF_NULL,
+                    outputSizeCalculatorType = OutputSizeCalculatorType.CUSTOM2)
   public static class Rtrim implements DrillSimpleFunc {
     @Param  VarCharHolder text;
     @Param  VarCharHolder from;
@@ -1232,7 +1251,8 @@ public class StringFunctions{
   /**
    * Remove the longest string containing only character " " from the end of "text"
    */
-  @FunctionTemplate(name = "rtrim", scope = FunctionScope.SIMPLE, nulls = NullHandling.NULL_IF_NULL)
+  @FunctionTemplate(name = "rtrim", scope = FunctionScope.SIMPLE, nulls = NullHandling.NULL_IF_NULL,
+                    outputSizeCalculatorType = OutputSizeCalculatorType.CUSTOM2)
   public static class RtrimOneArg implements DrillSimpleFunc {
     @Param  VarCharHolder text;
 
@@ -1265,7 +1285,8 @@ public class StringFunctions{
   /**
    * Remove the longest string containing only characters from "from"  from the start of "text"
    */
-  @FunctionTemplate(name = "btrim", scope = FunctionScope.SIMPLE, nulls = NullHandling.NULL_IF_NULL)
+  @FunctionTemplate(name = "btrim", scope = FunctionScope.SIMPLE, nulls = NullHandling.NULL_IF_NULL,
+                    outputSizeCalculatorType = OutputSizeCalculatorType.CUSTOM2)
   public static class Btrim implements DrillSimpleFunc {
     @Param  VarCharHolder text;
     @Param  VarCharHolder from;
@@ -1312,7 +1333,8 @@ public class StringFunctions{
   /**
    * Remove the longest string containing only character " " from the start of "text"
    */
-  @FunctionTemplate(name = "btrim", scope = FunctionScope.SIMPLE, nulls = NullHandling.NULL_IF_NULL)
+  @FunctionTemplate(name = "btrim", scope = FunctionScope.SIMPLE, nulls = NullHandling.NULL_IF_NULL,
+                    outputSizeCalculatorType = OutputSizeCalculatorType.CUSTOM2)
   public static class BtrimOneArg implements DrillSimpleFunc {
     @Param  VarCharHolder text;
 
@@ -1350,7 +1372,8 @@ public class StringFunctions{
     } // end of eval
   }
 
-  @FunctionTemplate(name = "split", scope = FunctionScope.SIMPLE, nulls = NullHandling.NULL_IF_NULL)
+  @FunctionTemplate(name = "split", scope = FunctionScope.SIMPLE, nulls = NullHandling.NULL_IF_NULL,
+                    outputSizeCalculatorType = OutputSizeCalculatorType.CUSTOM)
   public static class Split implements DrillSimpleFunc {
     @Param  VarCharHolder input;
     @Param  VarCharHolder delimiter;
@@ -1392,7 +1415,8 @@ public class StringFunctions{
   @FunctionTemplate(name = "concatOperator",
       scope = FunctionScope.SIMPLE,
       returnType = ReturnType.CONCAT,
-      nulls = NullHandling.NULL_IF_NULL)
+      nulls = NullHandling.NULL_IF_NULL,
+      outputSizeCalculatorType = OutputSizeCalculatorType.CONCAT)
   public static class ConcatOperator implements DrillSimpleFunc {
     @Param  VarCharHolder left;
     @Param  VarCharHolder right;
@@ -1424,7 +1448,7 @@ public class StringFunctions{
   @FunctionTemplate(name = "concat",
       scope = FunctionScope.SIMPLE,
       returnType = ReturnType.CONCAT,
-      outputSizeEstimate = OutputSizeEstimate.CONCAT,
+      outputSizeCalculatorType = OutputSizeCalculatorType.CONCAT,
       nulls = NullHandling.INTERNAL)
   public static class Concat implements DrillSimpleFunc {
     @Param  VarCharHolder left;
@@ -1455,7 +1479,8 @@ public class StringFunctions{
   @FunctionTemplate(name = "concat",
       scope = FunctionScope.SIMPLE,
       returnType = ReturnType.CONCAT,
-      nulls = NullHandling.INTERNAL)
+      nulls = NullHandling.INTERNAL,
+      outputSizeCalculatorType = OutputSizeCalculatorType.CONCAT)
   public static class ConcatRightNullInput implements DrillSimpleFunc {
     @Param  VarCharHolder left;
     @Param  NullableVarCharHolder right;
@@ -1487,7 +1512,8 @@ public class StringFunctions{
   @FunctionTemplate(name = "concat",
       scope = FunctionScope.SIMPLE,
       returnType = ReturnType.CONCAT,
-      nulls = NullHandling.INTERNAL)
+      nulls = NullHandling.INTERNAL,
+      outputSizeCalculatorType = OutputSizeCalculatorType.CONCAT)
   public static class ConcatLeftNullInput implements DrillSimpleFunc {
     @Param  NullableVarCharHolder left;
     @Param  VarCharHolder right;
@@ -1519,7 +1545,8 @@ public class StringFunctions{
   @FunctionTemplate(name = "concat",
       scope = FunctionScope.SIMPLE,
       returnType = ReturnType.CONCAT,
-      nulls = NullHandling.INTERNAL)
+      nulls = NullHandling.INTERNAL,
+      outputSizeCalculatorType = OutputSizeCalculatorType.CONCAT)
   public static class ConcatBothNullInput implements DrillSimpleFunc {
     @Param  NullableVarCharHolder left;
     @Param  NullableVarCharHolder right;
@@ -1552,7 +1579,8 @@ public class StringFunctions{
 
   // Converts a hex encoded string into a varbinary type.
   // "\xca\xfe\xba\xbe" => (byte[]) {(byte)0xca, (byte)0xfe, (byte)0xba, (byte)0xbe}
-  @FunctionTemplate(name = "binary_string", scope = FunctionScope.SIMPLE, nulls = NullHandling.NULL_IF_NULL)
+  @FunctionTemplate(name = "binary_string", scope = FunctionScope.SIMPLE, nulls = NullHandling.NULL_IF_NULL,
+                    outputSizeCalculatorType = OutputSizeCalculatorType.CUSTOM2)
   public static class BinaryString implements DrillSimpleFunc {
     @Param  VarCharHolder in;
     @Output VarBinaryHolder out;
@@ -1572,7 +1600,8 @@ public class StringFunctions{
 
   // Converts a varbinary type into a hex encoded string.
   // (byte[]) {(byte)0xca, (byte)0xfe, (byte)0xba, (byte)0xbe}  => "\xca\xfe\xba\xbe"
-  @FunctionTemplate(name = "string_binary", scope = FunctionScope.SIMPLE, nulls = NullHandling.NULL_IF_NULL)
+  @FunctionTemplate(name = "string_binary", scope = FunctionScope.SIMPLE, nulls = NullHandling.NULL_IF_NULL,
+                    outputSizeCalculatorType = OutputSizeCalculatorType.CUSTOM2)
   public static class StringBinary implements DrillSimpleFunc {
     @Param  VarBinaryHolder in;
     @Output VarCharHolder   out;
@@ -1616,7 +1645,8 @@ public class StringFunctions{
   /**
   * Returns the char corresponding to ASCII code input.
   */
-  @FunctionTemplate(name = "chr", scope = FunctionScope.SIMPLE, nulls = NullHandling.NULL_IF_NULL)
+  @FunctionTemplate(name = "chr", scope = FunctionScope.SIMPLE, nulls = NullHandling.NULL_IF_NULL,
+                    variableOutputSizeEstimate = OutputSizeEstimateConstants.CHAR_LENGTH)
   public static class AsciiToChar implements DrillSimpleFunc {
     @Param  IntHolder in;
     @Output VarCharHolder out;
@@ -1639,7 +1669,8 @@ public class StringFunctions{
   /**
   * Returns the input char sequences repeated nTimes.
   */
-  @FunctionTemplate(names = {"repeat", "repeatstr"}, scope = FunctionScope.SIMPLE, nulls = NullHandling.NULL_IF_NULL)
+  @FunctionTemplate(names = {"repeat", "repeatstr"}, scope = FunctionScope.SIMPLE, nulls = NullHandling.NULL_IF_NULL,
+                    outputSizeCalculatorType = OutputSizeCalculatorType.CUSTOM) //KM_TBD: add scale factor for functions like these
   public static class RepeatString implements DrillSimpleFunc {
 
     @Param  VarCharHolder in;
@@ -1667,7 +1698,8 @@ public class StringFunctions{
   /**
   * Convert string to ASCII from another encoding input.
   */
-  @FunctionTemplate(name = "toascii", scope = FunctionScope.SIMPLE, nulls = NullHandling.NULL_IF_NULL)
+  @FunctionTemplate(name = "toascii", scope = FunctionScope.SIMPLE, nulls = NullHandling.NULL_IF_NULL,
+                    outputSizeCalculatorType = OutputSizeCalculatorType.CUSTOM2)
   public static class AsciiEndode implements DrillSimpleFunc {
     @Param  VarCharHolder in;
     @Param  VarCharHolder enc;
@@ -1701,7 +1733,8 @@ public class StringFunctions{
   @FunctionTemplate(name = "reverse",
       scope = FunctionScope.SIMPLE,
       returnType = ReturnType.SAME_IN_OUT_LENGTH,
-      nulls = NullHandling.NULL_IF_NULL)
+      nulls = NullHandling.NULL_IF_NULL,
+      outputSizeCalculatorType = OutputSizeCalculatorType.CLONE)
   public static class ReverseString implements DrillSimpleFunc {
     @Param  VarCharHolder in;
     @Output VarCharHolder out;

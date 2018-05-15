@@ -23,6 +23,7 @@ import org.apache.drill.exec.expr.annotations.Output;
 import org.apache.drill.exec.expr.annotations.Param;
 import org.apache.drill.exec.expr.holders.BigIntHolder;
 import org.apache.drill.exec.expr.holders.VarBinaryHolder;
+import org.apache.drill.exec.physical.impl.project.OutputSizeEstimateConstants;
 
 // TODO: implement optional length parameter
 
@@ -42,7 +43,8 @@ import org.apache.drill.exec.expr.holders.VarBinaryHolder;
  */
 @FunctionTemplate(names = {"bytesubstring", "byte_substr"},
                   scope = FunctionTemplate.FunctionScope.SIMPLE,
-                  nulls = FunctionTemplate.NullHandling.NULL_IF_NULL)
+                  nulls = FunctionTemplate.NullHandling.NULL_IF_NULL,
+                  outputSizeCalculatorType = FunctionTemplate.OutputSizeCalculatorType.CUSTOM2)
 public class ByteSubstring implements DrillSimpleFunc {
 
   @Param VarBinaryHolder in;

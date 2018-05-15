@@ -26,8 +26,8 @@ import java.util.List;
  * Return type calculation interface for functions that have return type set as with enum
  * {@link org.apache.drill.exec.expr.annotations.FunctionTemplate.ReturnType}.
  */
-public interface OutputSizeEstimator {
+public interface OutputWidthCalculator {
 
-  int getEstimatedOutputSize(List<FixedLenExpr> args);
+  int getOutputWidth(List<FixedLenExpr> args);
 
 }

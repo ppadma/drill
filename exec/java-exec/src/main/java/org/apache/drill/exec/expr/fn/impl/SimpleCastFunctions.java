@@ -54,7 +54,8 @@ public class SimpleCastFunctions {
   @FunctionTemplate(name = "castVARCHAR",
       scope = FunctionTemplate.FunctionScope.SIMPLE,
       returnType = FunctionTemplate.ReturnType.STRING_CAST,
-      nulls = NullHandling.NULL_IF_NULL)
+      nulls = NullHandling.NULL_IF_NULL,
+      outputSizeCalculatorType = FunctionTemplate.OutputSizeCalculatorType.CUSTOM2)
   public static class CastBooleanVarChar implements DrillSimpleFunc {
 
     @Param BitHolder in;
