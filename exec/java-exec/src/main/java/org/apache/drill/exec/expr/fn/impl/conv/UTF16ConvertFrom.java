@@ -25,10 +25,9 @@ import org.apache.drill.exec.expr.annotations.Output;
 import org.apache.drill.exec.expr.annotations.Param;
 import org.apache.drill.exec.expr.holders.Var16CharHolder;
 import org.apache.drill.exec.expr.holders.VarBinaryHolder;
-import org.apache.drill.exec.physical.impl.project.OutputSizeEstimateConstants;
 
 @FunctionTemplate(name = "convert_fromUTF16", scope = FunctionScope.SIMPLE, nulls = NullHandling.NULL_IF_NULL,
-                  outputSizeCalculatorType = FunctionTemplate.OutputSizeCalculatorType.CLONE)
+                  outputSizeCalculatorType = FunctionTemplate.OutputWidthCalculatorType.CLONE)
 public class UTF16ConvertFrom implements DrillSimpleFunc {
 
   @Param VarBinaryHolder in;

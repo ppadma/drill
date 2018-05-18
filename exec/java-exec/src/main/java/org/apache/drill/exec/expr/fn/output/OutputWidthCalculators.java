@@ -82,7 +82,7 @@ public class OutputWidthCalculators {
         @Override
         public int getOutputWidth(List<FixedLenExpr> args) {
             int outputSize = 0;
-            if (args == null || args.size() != 1) {
+            if (args == null || args.size() < 1) {
                 throw new IllegalArgumentException();
             }
             outputSize = args.get(0).getWidth();

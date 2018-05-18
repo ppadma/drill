@@ -18,8 +18,10 @@
 
 package org.apache.drill.exec.physical.impl.project;
 
+import org.apache.commons.lang3.StringUtils;
 import org.apache.drill.common.expression.FunctionHolderExpression;
 import org.apache.drill.common.expression.LogicalExpression;
+import org.apache.drill.common.expression.TypedNullConstant;
 import org.apache.drill.common.expression.ValueExpressions;
 import org.apache.drill.common.types.TypeProtos.MajorType;
 import org.apache.drill.common.types.Types;
@@ -33,6 +35,8 @@ import org.apache.drill.exec.expr.fn.output.OutputWidthCalculator;
 import org.apache.drill.exec.physical.impl.project.OutputWidthExpression.FixedLenExpr;
 import org.apache.drill.exec.physical.impl.project.OutputWidthExpression.FunctionCallExpr;
 import org.apache.drill.exec.physical.impl.project.OutputWidthExpression.VarLenReadExpr;
+import org.apache.drill.exec.planner.StarColumnHelper;
+import org.apache.drill.exec.record.RecordBatchSizer;
 import org.apache.drill.exec.record.TypedFieldId;
 import org.apache.drill.exec.vector.ValueVector;
 
@@ -73,8 +77,7 @@ public class OutputWidthVisitor extends AbstractExecExprVisitor<OutputWidthExpre
         ProjectMemoryManager manager = state.getManager();
         OutputWidthExpression outputExpr = null;
         if (manager.isFixedWidth(fieldId)) {
-            manager.addFixedWidthField(fieldId, state.getOutputColumnType());
-            return null;
+            outputExpr = getFixedLenExpr(fieldId.getFinalType());
         } else {
             LogicalExpression writeArg = writeExpr.getChild();
             outputExpr = writeArg.accept(this, state);
@@ -97,9 +100,22 @@ public class OutputWidthVisitor extends AbstractExecExprVisitor<OutputWidthExpre
     @Override
     public OutputWidthExpression visitUnknown(LogicalExpression logicalExpression, OutputWidthVisitorState state) {
         OutputWidthExpression fixedLenExpr = getFixedLenExpr(logicalExpression.getMajorType());
-        if (fixedLenExpr != null) { return fixedLenExpr; }
-        return null;
+        if (fixedLenExpr != null) {
+            return fixedLenExpr;
+        }
+        throw new IllegalStateException("Unknown variable width expression: " + logicalExpression);
     }
+
+    @Override
+    public OutputWidthExpression visitNullConstant(TypedNullConstant nullConstant, OutputWidthVisitorState state)
+            throws RuntimeException {
+        if (nullConstant.getMajorType().hasPrecision()) {
+            int fixedWidth = nullConstant.getMajorType().getPrecision();
+            return new FixedLenExpr(fixedWidth);
+        }
+        throw new IllegalStateException("Unknown TypedNullConstant type: " + nullConstant.getMajorType());
+    }
+
 
     @Override
     public OutputWidthExpression visitFixedLenExpr(FixedLenExpr fixedLenExpr, OutputWidthVisitorState state)
@@ -115,8 +131,10 @@ public class OutputWidthVisitor extends AbstractExecExprVisitor<OutputWidthExpre
             TypedFieldId fieldId = varLenReadExpr.getReadExpression().getTypedFieldId();
             ValueVector vv = state.manager.getIncomingValueVector(fieldId);
             columnName =  vv.getField().getName();
+            //columnName = columnName.replaceFirst(".*" + StarColumnHelper.PREFIX_DELIMITER, "");
         }
-        int columnWidth = state.manager.getColumnSize(columnName).getDataSizePerEntry();
+        final RecordBatchSizer.ColumnSize columnSize = state.manager.getColumnSize(columnName);
+        int columnWidth = columnSize.getNetSizePerEntry();
         return new FixedLenExpr(columnWidth);
     }
 

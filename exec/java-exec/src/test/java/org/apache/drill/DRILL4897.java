@@ -65,8 +65,9 @@ public class DRILL4897 extends DrillTest {
 //            1,Sheri Nowmer,Sheri,Nowmer,1,President,0,1,1961-08-26,1994-12-01 00:00:00.0,80000.0,0,Graduate Degree,S,F,Senior Management
 //            String sql = "SELECT MAX(employee_id) as max_id " +
 //                         " from cp.`employee.json` ";
-            String sql = "SELECT UPPER(CONCAT(first_name, '##')) as upper_name " +
-                    " from cp.`employee.json` ";
+//            String sql = "SELECT UPPER(CONCAT(first_name, '##')) as upper_name " +
+//                    " from cp.`employee.json` ";
+            String sql = "select * from cp.`employee.json` order by last_name limit 2";
 
 //            String sql = "SELECT employee_id + position_id as eidpluspid " +
 //                            " from cp.`employee.json` ";

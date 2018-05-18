@@ -35,7 +35,7 @@ import org.apache.drill.exec.expr.holders.VarCharHolder;
 
 @SuppressWarnings("unused")
 @FunctionTemplate(names = {"castVAR16CHAR", "to_var16char", "to_string"}, scope = FunctionTemplate.FunctionScope.SIMPLE, nulls= NullHandling.NULL_IF_NULL,
-                  outputSizeCalculatorType = FunctionTemplate.OutputSizeCalculatorType.CUSTOM2)
+                  outputSizeCalculatorType = FunctionTemplate.OutputWidthCalculatorType.CUSTOM2)
 public class CastVarCharVar16Char implements DrillSimpleFunc {
   @Param VarCharHolder in;
   @Param BigIntHolder length;

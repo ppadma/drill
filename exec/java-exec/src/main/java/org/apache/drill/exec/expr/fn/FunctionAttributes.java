@@ -54,7 +54,7 @@ public class FunctionAttributes {
     return template.returnType();
   }
 
-  public FunctionTemplate.OutputSizeCalculatorType getOutputSizeCalculator() {
+  public FunctionTemplate.OutputWidthCalculatorType getOutputSizeCalculator() {
     return template.outputSizeCalculatorType();
   }
 

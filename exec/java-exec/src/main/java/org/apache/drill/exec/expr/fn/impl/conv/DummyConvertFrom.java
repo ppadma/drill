@@ -29,7 +29,7 @@ import org.apache.drill.exec.expr.holders.VarBinaryHolder;
  * allows 'convert_to()' and 'convert_from()' functions in SQL.
  */
 @FunctionTemplate(name = "convert_from", scope = FunctionScope.SIMPLE, nulls = NullHandling.NULL_IF_NULL,
-                  outputSizeCalculatorType = FunctionTemplate.OutputSizeCalculatorType.DEFAULT)
+                  outputSizeCalculatorType = FunctionTemplate.OutputWidthCalculatorType.DEFAULT)
 public class DummyConvertFrom implements DrillSimpleFunc {
 
   @Output VarBinaryHolder out;

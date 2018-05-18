@@ -19,6 +19,7 @@ package org.apache.drill.exec.physical.unit;
 
 import com.google.common.collect.Lists;
 import org.apache.calcite.rel.core.JoinRelType;
+import org.apache.directory.api.util.Strings;
 import org.apache.drill.common.exceptions.ExecutionSetupException;
 import org.apache.drill.common.expression.SchemaPath;
 
@@ -148,7 +149,69 @@ public class TestOutputBatchSize extends PhysicalOpUnitTestBase {
     for (int i = 0; i < numRows; i++) {
       opTestBuilder.baselineValues(baselineValues);
     }
+    opTestBuilder.go();
+  }
 
+  @Test
+  public void testProjectVariableWidth() throws Exception {
+    testProjectVariableWidthImpl(true, 2);
+    testProjectVariableWidthImpl(false, 2);
+  }
+
+  public void testProjectVariableWidthImpl(boolean transfer, int columnCount) throws Exception {
+    String testString = "ABCDEFGHIJ";
+    String jsonRow = "{";
+    String[] baselineColumns = new String [columnCount];
+    Object[] baselineValues = new String[columnCount];
+    int exprSize = (transfer ? 2 : 2 * columnCount);
+    String[] expr = new String[exprSize];
+
+    // Expr for a 'select *' as expected by parseExprs()
+    if (transfer) {
+      expr[0] = "`**`";
+      expr[1] = "`**`";
+    }
+
+    for (int i = 0; i < columnCount; i++) {
+      jsonRow +=  "\"" + "C" + i + "\": " + "\"" + testString + "\"" + ((i == columnCount - 1) ? "" : ",");
+      baselineColumns[i] = "C" + i;
+      if (!transfer) {
+        expr[i * 2] = "lower(" + baselineColumns[i] + ")";
+        expr[i * 2 + 1] = baselineColumns[i];
+      }
+      baselineValues[i] = (transfer ? testString : Strings.lowerCase(testString));
+    }
+    jsonRow += "}";
+    String batchString = "[";
+    for (int i = 0; i < numRows; i++) {
+      batchString += jsonRow + ((i == numRows - 1) ? "" : ",");
+    }
+    batchString += "]";
+    List<String> inputJsonBatches = Lists.newArrayList();
+    inputJsonBatches.add(batchString);
+
+    List<String> expectedJsonBatches = Lists.newArrayList();
+    expectedJsonBatches.add(batchString);
+
+    Project projectConf = new Project(parseExprs(expr), null);
+    mockOpContext(projectConf, initReservation, maxAllocation);
+
+
+    long totalSize = getExpectedSize(expectedJsonBatches);
+
+    fragContext.getOptions().setLocalOption("drill.exec.memory.operator.output_batch_size", totalSize / 2);
+
+
+    OperatorTestBuilder opTestBuilder = opTestBuilder()
+            .physicalOperator(projectConf)
+            .inputDataStreamJson(inputJsonBatches)
+            .baselineColumns(baselineColumns)
+            .expectedNumBatches(2)  // verify number of batches
+            .expectedBatchSize(totalSize / 2); // verify batch size.
+
+    for (int i = 0; i < numRows; i++) {
+      opTestBuilder.baselineValues(baselineValues);
+    }
     opTestBuilder.go();
   }
 

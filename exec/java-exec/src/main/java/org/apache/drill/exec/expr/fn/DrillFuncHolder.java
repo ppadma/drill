@@ -268,7 +268,7 @@ public abstract class DrillFuncHolder extends AbstractFuncHolder {
   }
 
   public OutputWidthCalculator getOutputSizeCalculator() {
-    return attributes.getOutputSizeCalculator().getOutputSizeCalculator();
+    return attributes.getOutputSizeCalculator().getOutputWidthCalculator();
   }
 
   public NullHandling getNullHandling() {

@@ -100,24 +100,24 @@ public @interface FunctionTemplate {
    * This enum will be used to estimate the average size of the output
    * produced by a function that produces variable length output
    */
-  public enum OutputSizeCalculatorType {
+  public enum OutputWidthCalculatorType {
     DEFAULT(OutputWidthCalculators.DefaultOutputWidthCalculator.INSTANCE),
     CLONE(OutputWidthCalculators.CloneOutputWidthCalculator.INSTANCE),
     CONCAT(OutputWidthCalculators.ConcatOutputWidthCalculator.INSTANCE),
-    // Custom calculator will default to DEFAULT
-    // A place holder marker on functions until support for CUSTOM calculators is implemented
+    // Custom calculator are place holder markers on functions until support
+    // for CUSTOM calculators is implemented
     CUSTOM(OutputWidthCalculators.DefaultOutputWidthCalculator.INSTANCE),
     CUSTOM2(OutputWidthCalculators.CloneOutputWidthCalculator.INSTANCE);
-    OutputWidthCalculator estimator;
+    OutputWidthCalculator outputWidthCalculator;
 
-    OutputSizeCalculatorType(OutputWidthCalculator estimator) {
-      this.estimator = estimator;
+    OutputWidthCalculatorType(OutputWidthCalculator outputWidthCalculator) {
+      this.outputWidthCalculator = outputWidthCalculator;
     }
 
-    public OutputWidthCalculator getOutputSizeCalculator() { return estimator; }
+    public OutputWidthCalculator getOutputWidthCalculator() { return outputWidthCalculator; }
   }
 
-  OutputSizeCalculatorType outputSizeCalculatorType() default OutputSizeCalculatorType.DEFAULT;
+  OutputWidthCalculatorType outputSizeCalculatorType() default OutputWidthCalculatorType.DEFAULT;
 
   enum NullHandling {
     /**
