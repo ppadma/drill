@@ -339,6 +339,7 @@ public class ProjectRecordBatch extends AbstractSingleRecordBatch<Project> {
 
   private void setupNewSchemaFromInput(RecordBatch incomingBatch) throws SchemaChangeException {
     memoryManager.setIncomingBatch(incomingBatch);
+    memoryManager.setOutgoingBatch(this);
     if (allocationVectors != null) {
       for (final ValueVector v : allocationVectors) {
         v.clear();
@@ -548,7 +549,6 @@ public class ProjectRecordBatch extends AbstractSingleRecordBatch<Project> {
 
   @Override
   protected boolean setupNewSchema() throws SchemaChangeException {
-    memoryManager.setOutgoingBatch(this);
     setupNewSchemaFromInput(this.incoming);
     if (container.isSchemaChanged() || callBack.getSchemaChangedAndReset()) {
       container.buildSchema(SelectionVectorMode.NONE);
