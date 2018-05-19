@@ -124,11 +124,14 @@ public class OutputWidthVisitor extends AbstractExecExprVisitor<OutputWidthExpre
     @Override
     public OutputWidthExpression visitNullConstant(TypedNullConstant nullConstant, OutputWidthVisitorState state)
             throws RuntimeException {
+        int width;
         if (nullConstant.getMajorType().hasPrecision()) {
-            int fixedWidth = nullConstant.getMajorType().getPrecision();
-            return new FixedLenExpr(fixedWidth);
+            width = nullConstant.getMajorType().getPrecision();
+        } else {
+            width = 0; //KM_TBD: What should the width of var length null ?
         }
-        throw new IllegalStateException("Unknown TypedNullConstant type: " + nullConstant.getMajorType());
+        return new FixedLenExpr(width);
+        //throw new IllegalStateException("Unknown TypedNullConstant type: " + nullConstant.getMajorType());
     }
 
 
