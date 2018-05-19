@@ -30,6 +30,23 @@ public abstract class OutputWidthExpression {
 
     abstract <T, V, E extends Exception> T accept(AbstractExecExprVisitor<T, V, E> visitor, V value) throws E;
 
+
+    public static class IfElseWidthExpr extends OutputWidthExpression {
+        OutputWidthExpression[] expressions;
+
+        public IfElseWidthExpr(OutputWidthExpression ifExpr, OutputWidthExpression elseExpr) {
+            this.expressions[0] = ifExpr;
+            this.expressions[1] = elseExpr;
+        }
+
+        @Override
+        public <T, V, E extends Exception> T accept(AbstractExecExprVisitor<T, V, E> visitor, V value) throws E {
+            return visitor.visitIfElseWidthExpr(this, value);
+        }
+
+    }
+
+
     public static class FunctionCallExpr extends OutputWidthExpression {
         FunctionHolderExpression holder;
         ArrayList<OutputWidthExpression> args;

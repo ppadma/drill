@@ -18,8 +18,8 @@
 
 package org.apache.drill.exec.physical.impl.project;
 
-import org.apache.commons.lang3.StringUtils;
 import org.apache.drill.common.expression.FunctionHolderExpression;
+import org.apache.drill.common.expression.IfExpression;
 import org.apache.drill.common.expression.LogicalExpression;
 import org.apache.drill.common.expression.TypedNullConstant;
 import org.apache.drill.common.expression.ValueExpressions;
@@ -35,7 +35,7 @@ import org.apache.drill.exec.expr.fn.output.OutputWidthCalculator;
 import org.apache.drill.exec.physical.impl.project.OutputWidthExpression.FixedLenExpr;
 import org.apache.drill.exec.physical.impl.project.OutputWidthExpression.FunctionCallExpr;
 import org.apache.drill.exec.physical.impl.project.OutputWidthExpression.VarLenReadExpr;
-import org.apache.drill.exec.planner.StarColumnHelper;
+import org.apache.drill.exec.physical.impl.project.OutputWidthExpression.IfElseWidthExpr;
 import org.apache.drill.exec.record.RecordBatchSizer;
 import org.apache.drill.exec.record.TypedFieldId;
 import org.apache.drill.exec.vector.ValueVector;
@@ -44,6 +44,21 @@ import java.util.ArrayList;
 
 public class OutputWidthVisitor extends AbstractExecExprVisitor<OutputWidthExpression, OutputWidthVisitorState,
         RuntimeException> {
+
+    @Override
+    public OutputWidthExpression visitIfExpression(IfExpression ifExpression, OutputWidthVisitorState state)
+                                                                    throws RuntimeException {
+        IfExpression.IfCondition condition = ifExpression.ifCondition;
+        LogicalExpression ifExpr = condition.expression;
+        LogicalExpression elseExpr = ifExpression.elseExpression;
+
+        OutputWidthExpression ifWidthExpr = ifExpr.accept(this, state);
+        OutputWidthExpression elseWidthExpr = null;
+        if (elseExpr != null) {
+            elseWidthExpr = elseExpr.accept(this, state);
+        }
+        return new IfElseWidthExpr(ifWidthExpr, elseWidthExpr);
+    }
 
     @Override
     public OutputWidthExpression visitFunctionHolderExpression(FunctionHolderExpression holderExpr,
@@ -131,9 +146,9 @@ public class OutputWidthVisitor extends AbstractExecExprVisitor<OutputWidthExpre
             TypedFieldId fieldId = varLenReadExpr.getReadExpression().getTypedFieldId();
             ValueVector vv = state.manager.getIncomingValueVector(fieldId);
             columnName =  vv.getField().getName();
-            //columnName = columnName.replaceFirst(".*" + StarColumnHelper.PREFIX_DELIMITER, "");
         }
-        final RecordBatchSizer.ColumnSize columnSize = state.manager.getColumnSize(columnName);
+        final RecordBatchSizer.ColumnSize columnSize = state.manager.getComplexColumnSize(columnName);
+
         int columnWidth = columnSize.getNetSizePerEntry();
         return new FixedLenExpr(columnWidth);
     }
@@ -154,6 +169,22 @@ public class OutputWidthVisitor extends AbstractExecExprVisitor<OutputWidthExpre
         OutputWidthCalculator estimator = functionCallExpr.getEstimator();
         int estimatedSize = estimator.getOutputWidth(estimatedArgs);
         return new FixedLenExpr(estimatedSize);
+    }
+
+    @Override
+    public OutputWidthExpression visitIfElseWidthExpr(IfElseWidthExpr ifElseWidthExpr, OutputWidthVisitorState state)
+                                                        throws RuntimeException {
+        OutputWidthExpression ifReducedExpr = ifElseWidthExpr.expressions[0].accept(this, state);
+        assert ifReducedExpr instanceof FixedLenExpr;
+        int ifWidth = ((FixedLenExpr)ifReducedExpr).getWidth();
+        int elseWidth = -1;
+        if (ifElseWidthExpr.expressions[1] != null) {
+            OutputWidthExpression elseReducedExpr = ifElseWidthExpr.expressions[1].accept(this, state);
+            assert elseReducedExpr instanceof FixedLenExpr;
+            elseWidth = ((FixedLenExpr)elseReducedExpr).getWidth();
+        }
+        int outputWidth = Math.max(ifWidth, elseWidth);
+        return new FixedLenExpr(outputWidth);
     }
 
     private OutputWidthExpression getFixedLenExpr(MajorType majorType) {

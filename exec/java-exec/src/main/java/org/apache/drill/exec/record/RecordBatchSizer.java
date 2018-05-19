@@ -42,6 +42,8 @@ import org.apache.drill.exec.vector.VariableWidthVector;
 
 import com.google.common.collect.Sets;
 import org.apache.drill.exec.vector.complex.RepeatedVariableWidthVectorLike;
+import org.bouncycastle.util.Strings;
+
 import static org.apache.drill.exec.vector.AllocationHelper.STD_REPETITION_FACTOR;
 
 /**
@@ -597,6 +599,25 @@ public class RecordBatchSizer {
     }
 
   }
+
+  public ColumnSize getComplexColumn(String path) {
+    String[] segments = Strings.split(path, '.');
+    Map<String, ColumnSize> map = columnSizes;
+    return getComplexColumnImpl(segments, 0, map);
+  }
+
+  private ColumnSize getComplexColumnImpl(String[] segments, int level, Map<String, ColumnSize> map) {
+    ColumnSize result = map.get(segments[level]);
+    if (result == null || level == segments.length - 1) {
+      return result;
+    }
+    map = result.getChildren();
+    if (map == null) {
+      return null;
+    }
+    return getComplexColumnImpl(segments, level + 1, map);
+  }
+
 
   public ColumnSize getColumn(String name) {
     return columnSizes.get(name);

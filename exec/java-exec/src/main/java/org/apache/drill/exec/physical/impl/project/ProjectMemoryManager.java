@@ -173,15 +173,15 @@ public class ProjectMemoryManager extends RecordBatchMemoryManager {
         return vv.getPayloadByteCount(1);
     }
 
-    void addTransferField(ValueVector vvOut) {
-        addField(vvOut, null, OutputColumnType.TRANSFER);
+    void addTransferField(ValueVector vvOut, String path) {
+        addField(vvOut, null, OutputColumnType.TRANSFER, path);
     }
 
     void addNewField(ValueVector vv, LogicalExpression logicalExpression) {
-        addField(vv, logicalExpression, OutputColumnType.NEW);
+        addField(vv, logicalExpression, OutputColumnType.NEW, null);
     }
 
-    void addField(ValueVector vv, LogicalExpression logicalExpression, OutputColumnType outputColumnType) {
+    void addField(ValueVector vv, LogicalExpression logicalExpression, OutputColumnType outputColumnType, String path) {
         if(isFixedWidth(vv)) {
             fixedWidthColumnCount++;
             addFixedWidthField(vv, outputColumnType);
@@ -190,8 +190,8 @@ public class ProjectMemoryManager extends RecordBatchMemoryManager {
             ColumnWidthInfo columnWidthInfo;
             //Variable width transfers
             if(outputColumnType == OutputColumnType.TRANSFER) {
-
-                String columnName = vv.getField().getName();
+                String columnName = path;
+//                String columnName = vv.getField().getName();
 //                columnName = columnName.replaceFirst(".*" + StarColumnHelper.PREFIX_DELIMITER, "");
 
                 VarLenReadExpr readExpr = new VarLenReadExpr(columnName);

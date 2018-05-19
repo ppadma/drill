@@ -22,6 +22,7 @@ import org.apache.drill.exec.physical.impl.project.OutputWidthExpression;
 import org.apache.drill.exec.physical.impl.project.OutputWidthExpression.FunctionCallExpr;
 import org.apache.drill.exec.physical.impl.project.OutputWidthExpression.FixedLenExpr;
 import org.apache.drill.exec.physical.impl.project.OutputWidthExpression.VarLenReadExpr;
+import org.apache.drill.exec.physical.impl.project.OutputWidthExpression.IfElseWidthExpr;
 
 
 public abstract class AbstractExecExprVisitor<T, VAL, EXCEP extends Exception> extends AbstractExprVisitor<T, VAL, EXCEP> {
@@ -46,8 +47,12 @@ public abstract class AbstractExecExprVisitor<T, VAL, EXCEP extends Exception> e
         return visitUnknown(varLenReadExpr, value);
     }
 
-    public T visitUnknown(OutputWidthExpression e, VAL value) throws EXCEP {
-        throw new UnsupportedOperationException(String.format("Expression of type %s not handled by visitor type %s.", e.getClass().getCanonicalName(), this.getClass().getCanonicalName()));
+    public T visitIfElseWidthExpr(IfElseWidthExpr ifElseWidthExpr, VAL value) throws EXCEP {
+        return visitUnknown(ifElseWidthExpr, value);
     }
 
+    public T visitUnknown(OutputWidthExpression e, VAL value) throws EXCEP {
+        throw new UnsupportedOperationException(String.format("Expression of type %s not handled by visitor type %s.",
+                e.getClass().getCanonicalName(), this.getClass().getCanonicalName()));
+    }
 }

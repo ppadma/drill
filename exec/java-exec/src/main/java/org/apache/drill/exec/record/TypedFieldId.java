@@ -283,4 +283,21 @@ public class TypedFieldId {
         + ", remainder=" + remainder + "]";
   }
 
+  public String getPath(RecordBatch recordBatch) {
+    String name = new String();
+    final String SEPARATOR = ".";
+    final int[] fieldIds = getFieldIds();
+    VectorWrapper<?> topLevel = recordBatch.getValueAccessorById(null, fieldIds[0]);
+    name = topLevel.getField().getName();
+    int[] currentLevel = new int[2];
+    for (int i = 0; i < this.fieldIds.length - 1; i++) {
+      currentLevel[0] = fieldIds[i];
+      // this is the level for which the actual lookup is done
+      currentLevel[1] = fieldIds[i + 1];
+      topLevel = topLevel.getChildWrapper(currentLevel);
+      name = name + SEPARATOR + topLevel.getField().getName();
+    }
+    return name;
+  }
+
 }
