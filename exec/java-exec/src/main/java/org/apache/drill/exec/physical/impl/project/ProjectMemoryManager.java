@@ -46,6 +46,10 @@ import static org.apache.drill.exec.vector.AllocationHelper.STD_REPETITION_FACTO
 
 public class ProjectMemoryManager extends RecordBatchMemoryManager {
 
+    public RecordBatch getIncomingBatch() {
+        return incomingBatch;
+    }
+
     RecordBatch incomingBatch = null;
     ProjectRecordBatch outgoingBatch = null;
 
