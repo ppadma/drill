@@ -35,6 +35,7 @@ public abstract class OutputWidthExpression {
         OutputWidthExpression[] expressions;
 
         public IfElseWidthExpr(OutputWidthExpression ifExpr, OutputWidthExpression elseExpr) {
+            this.expressions = new OutputWidthExpression[2];
             this.expressions[0] = ifExpr;
             this.expressions[1] = elseExpr;
         }
