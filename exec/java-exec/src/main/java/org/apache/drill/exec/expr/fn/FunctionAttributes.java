@@ -54,8 +54,12 @@ public class FunctionAttributes {
     return template.returnType();
   }
 
-  public FunctionTemplate.OutputWidthCalculatorType getOutputSizeCalculator() {
-    return template.outputSizeCalculatorType();
+  public FunctionTemplate.OutputWidthCalculatorType getOutputWidthCalculatorType() {
+    return template.outputWidthCalculatorType();
+  }
+
+  public int variableOutoputSizeEstimate() {
+    return  template.variableOutputSizeEstimate();
   }
 
   public NullHandling getNullHandling() {
@@ -99,9 +103,7 @@ public class FunctionAttributes {
     return template.isNiladic();
   }
 
-  public int variableOutoputSizeEstimate() {
-    return  template.variableOutputSizeEstimate();
-  }
+
 
   public boolean checkPrecisionRange() { return template.checkPrecisionRange(); }
 }

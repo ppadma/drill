@@ -245,7 +245,7 @@ public class ProjectMemoryManager extends RecordBatchMemoryManager {
                 OutputWidthExpression reducedExpr = savedWidthExpr.accept(new OutputWidthVisitor(), state);
                 assert reducedExpr instanceof FixedLenExpr;
                 width = ((FixedLenExpr)reducedExpr).getWidth();
-//                assert width > 0;
+                assert width >= 0;
             }
             rowWidth += width;
         }

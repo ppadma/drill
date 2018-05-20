@@ -90,12 +90,6 @@ public @interface FunctionTemplate {
   boolean isNiladic() default false;
   boolean checkPrecisionRange() default false;
 
-  int VARIABLE_OUTPUT_SIZE_ESTIMATE_DEFAULT = -1;
-
-  int variableOutputSizeEstimate() default VARIABLE_OUTPUT_SIZE_ESTIMATE_DEFAULT;
-
-
-
   /**
    * This enum will be used to estimate the average size of the output
    * produced by a function that produces variable length output
@@ -117,7 +111,10 @@ public @interface FunctionTemplate {
     public OutputWidthCalculator getOutputWidthCalculator() { return outputWidthCalculator; }
   }
 
-  OutputWidthCalculatorType outputSizeCalculatorType() default OutputWidthCalculatorType.DEFAULT;
+  OutputWidthCalculatorType outputWidthCalculatorType() default OutputWidthCalculatorType.DEFAULT;
+
+  int VARIABLE_OUTPUT_SIZE_ESTIMATE_DEFAULT = -1;
+  int variableOutputSizeEstimate() default VARIABLE_OUTPUT_SIZE_ESTIMATE_DEFAULT;
 
   enum NullHandling {
     /**

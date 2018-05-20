@@ -27,7 +27,7 @@ import org.apache.drill.exec.expr.holders.Var16CharHolder;
 import org.apache.drill.exec.expr.holders.VarBinaryHolder;
 
 @FunctionTemplate(name = "convert_fromUTF16", scope = FunctionScope.SIMPLE, nulls = NullHandling.NULL_IF_NULL,
-                  outputSizeCalculatorType = FunctionTemplate.OutputWidthCalculatorType.CLONE)
+                  outputWidthCalculatorType = FunctionTemplate.OutputWidthCalculatorType.CLONE)
 public class UTF16ConvertFrom implements DrillSimpleFunc {
 
   @Param VarBinaryHolder in;

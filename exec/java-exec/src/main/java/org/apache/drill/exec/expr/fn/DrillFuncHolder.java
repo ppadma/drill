@@ -101,9 +101,6 @@ public abstract class DrillFuncHolder extends AbstractFuncHolder {
     return attributes.isNiladic();
   }
 
-  public int variableOuputSizeEstimate(){
-    return attributes.variableOutoputSizeEstimate();
-  }
 
   /**
    * Generates string representation of function input parameters:
@@ -267,8 +264,12 @@ public abstract class DrillFuncHolder extends AbstractFuncHolder {
     return attributes.getReturnType().getType(logicalExpressions, attributes);
   }
 
-  public OutputWidthCalculator getOutputSizeCalculator() {
-    return attributes.getOutputSizeCalculator().getOutputWidthCalculator();
+  public OutputWidthCalculator getOutputWidthCalculator() {
+    return attributes.getOutputWidthCalculatorType().getOutputWidthCalculator();
+  }
+
+  public int variableOuputSizeEstimate(){
+    return attributes.variableOutoputSizeEstimate();
   }
 
   public NullHandling getNullHandling() {

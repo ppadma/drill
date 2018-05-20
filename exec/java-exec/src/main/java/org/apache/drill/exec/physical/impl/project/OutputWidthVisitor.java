@@ -72,7 +72,7 @@ public class OutputWidthVisitor extends AbstractExecExprVisitor<OutputWidthExpre
         if (estimate != FunctionTemplate.VARIABLE_OUTPUT_SIZE_ESTIMATE_DEFAULT) {
             return new FixedLenExpr(estimate);
         }
-        OutputWidthCalculator estimator = holder.getOutputSizeCalculator();
+        OutputWidthCalculator estimator = holder.getOutputWidthCalculator();
         final int argSize = holderExpr.args.size();
         ArrayList<OutputWidthExpression> arguments = null;
         if (argSize != 0) {
