@@ -18,6 +18,7 @@
 
 package org.apache.drill.exec.physical.impl.project;
 
+import com.google.common.base.Preconditions;
 import org.apache.drill.common.expression.FunctionHolderExpression;
 import org.apache.drill.common.expression.IfExpression;
 import org.apache.drill.common.expression.LogicalExpression;
@@ -36,6 +37,7 @@ import org.apache.drill.exec.physical.impl.project.OutputWidthExpression.FixedLe
 import org.apache.drill.exec.physical.impl.project.OutputWidthExpression.FunctionCallExpr;
 import org.apache.drill.exec.physical.impl.project.OutputWidthExpression.VarLenReadExpr;
 import org.apache.drill.exec.physical.impl.project.OutputWidthExpression.IfElseWidthExpr;
+import org.apache.drill.common.expression.ValueExpressions.VarDecimalExpression;
 import org.apache.drill.exec.record.RecordBatchSizer;
 import org.apache.drill.exec.record.TypedFieldId;
 
@@ -43,6 +45,13 @@ import java.util.ArrayList;
 
 public class OutputWidthVisitor extends AbstractExecExprVisitor<OutputWidthExpression, OutputWidthVisitorState,
         RuntimeException> {
+
+    @Override
+    public OutputWidthExpression visitVarDecimalConstant(VarDecimalExpression varDecimalExpression,
+                                                         OutputWidthVisitorState state) throws RuntimeException {
+        Preconditions.checkArgument(varDecimalExpression.getMajorType().hasPrecision());
+        return new FixedLenExpr(varDecimalExpression.getMajorType().getPrecision());
+    }
 
     @Override
     public OutputWidthExpression visitIfExpression(IfExpression ifExpression, OutputWidthVisitorState state)
