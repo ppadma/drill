@@ -38,7 +38,6 @@ import org.apache.drill.exec.physical.impl.project.OutputWidthExpression.VarLenR
 import org.apache.drill.exec.physical.impl.project.OutputWidthExpression.IfElseWidthExpr;
 import org.apache.drill.exec.record.RecordBatchSizer;
 import org.apache.drill.exec.record.TypedFieldId;
-import org.apache.drill.exec.vector.ValueVector;
 
 import java.util.ArrayList;
 

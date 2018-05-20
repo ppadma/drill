@@ -19,7 +19,6 @@
 package org.apache.drill.exec.physical.impl.project;
 
 import org.apache.drill.common.expression.FunctionHolderExpression;
-import org.apache.drill.common.expression.LogicalExpressionBase;
 import org.apache.drill.exec.expr.AbstractExecExprVisitor;
 import org.apache.drill.exec.expr.ValueVectorReadExpression;
 import org.apache.drill.exec.expr.fn.output.OutputWidthCalculator;
