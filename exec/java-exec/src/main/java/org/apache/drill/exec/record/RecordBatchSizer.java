@@ -601,6 +601,10 @@ public class RecordBatchSizer {
   }
 
   public ColumnSize getComplexColumn(String path) {
+    //attempt a simple lookup before attempting a complex lookup
+    final RecordBatchSizer.ColumnSize columnSize = this.getColumn(path);
+    if (columnSize != null) { return columnSize; }
+
     String[] segments = Strings.split(path, '.');
     Map<String, ColumnSize> map = columnSizes;
     return getComplexColumnImpl(segments, 0, map);
