@@ -145,6 +145,7 @@ public class ProjectMemoryManager extends RecordBatchMemoryManager {
         final boolean isVariableWidth  = (minorType == MinorType.VARCHAR || minorType == MinorType.VAR16CHAR
                                                                     || minorType == MinorType.VARBINARY);
 
+
         if (isVariableWidth) {
             throw new IllegalArgumentException("getWidthOfFixedWidthType() cannot handle variable width types");
         }
@@ -152,9 +153,13 @@ public class ProjectMemoryManager extends RecordBatchMemoryManager {
         final boolean isOptional = (mode == DataMode.OPTIONAL);
         final boolean isRepeated = (mode == DataMode.REPEATED);
 
-        int stdDataSize = TypeHelper.getSize(majorType);
+        int stdDataSize = 0;
 
         if (isOptional) { stdDataSize += BIT_VECTOR_WIDTH; }
+
+        if (minorType != MinorType.NULL) {
+            stdDataSize += TypeHelper.getSize(majorType);
+        }
 
         if (isRepeated) { stdDataSize = (stdDataSize * STD_REPETITION_FACTOR) + OFFSET_VECTOR_WIDTH; }
 
@@ -254,4 +259,5 @@ public class ProjectMemoryManager extends RecordBatchMemoryManager {
 //        System.out.println("Output row count " + outPutRowCount + ", batchSizer.rowCount " + batchSizer.rowCount() + ", rowWidth " + rowWidth + " incoming rc " + recordCount);
         setOutputRowCount(outPutRowCount);
     }
+
 }
