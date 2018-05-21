@@ -82,7 +82,6 @@ public class ProjectMemoryManager extends RecordBatchMemoryManager {
             this.widthType = widthType;
             String columnName = materializedField.getName();
             this.name = columnName;
-            //this.name = columnName.replaceFirst(".*" + StarColumnHelper.PREFIX_DELIMITER, "");
         }
 
         public OutputWidthExpression getOutputExpression() { return outputExpression; }
@@ -194,8 +193,6 @@ public class ProjectMemoryManager extends RecordBatchMemoryManager {
             //Variable width transfers
             if(outputColumnType == OutputColumnType.TRANSFER) {
                 String columnName = path;
-//                String columnName = vv.getField().getName();
-//                columnName = columnName.replaceFirst(".*" + StarColumnHelper.PREFIX_DELIMITER, "");
 
                 VarLenReadExpr readExpr = new VarLenReadExpr(columnName);
                 columnWidthInfo = new ColumnWidthInfo(vv, readExpr, outputColumnType,
@@ -271,8 +268,7 @@ public class ProjectMemoryManager extends RecordBatchMemoryManager {
         //KM_TBD Remove
         //System.out.println("Mem mgr " + this + " O/P rc " + outPutRowCount + ", batchSizer.rowCount " + batchSizer.rowCount() +
         //                   ", rowWidth " + rowWidth + " incoming rc " + recordCount);
-        setOutputRowCount(outPutRowCount);
         //System.out.flush();
+        setOutputRowCount(outPutRowCount);
     }
-
 }

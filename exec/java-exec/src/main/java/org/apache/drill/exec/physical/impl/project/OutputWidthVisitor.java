@@ -145,7 +145,6 @@ public class OutputWidthVisitor extends AbstractExecExprVisitor<OutputWidthExpre
             width = 0; //KM_TBD: What should the width of var length null ?
         }
         return new FixedLenExpr(width);
-        //throw new IllegalStateException("Unknown TypedNullConstant type: " + nullConstant.getMajorType());
     }
 
 
@@ -212,5 +211,4 @@ public class OutputWidthVisitor extends AbstractExecExprVisitor<OutputWidthExpre
         }
         return null;
     }
-
 }

@@ -381,7 +381,7 @@ public class ProjectRecordBatch extends AbstractSingleRecordBatch<Project> {
     final ClassGenerator<Projector> cg = CodeGenerator.getRoot(Projector.TEMPLATE_DEFINITION, context.getOptions());
     cg.getCodeGenerator().plainJavaCapable(true);
     // Uncomment out this line to debug the generated code.
-    cg.getCodeGenerator().saveCodeForDebugging(true);
+    //cg.getCodeGenerator().saveCodeForDebugging(true);
 
     final IntHashSet transferFieldIds = new IntHashSet();
 
@@ -392,7 +392,6 @@ public class ProjectRecordBatch extends AbstractSingleRecordBatch<Project> {
 
     for (NamedExpression namedExpression : exprs) {
       result.clear();
-      String outputName = getRef(namedExpression).getRootSegment().getPath();
       if (classify && namedExpression.getExpr() instanceof SchemaPath) {
         classifyExpr(namedExpression, incomingBatch, result);
 
@@ -459,10 +458,10 @@ public class ProjectRecordBatch extends AbstractSingleRecordBatch<Project> {
         // For the columns which do not needed to be classified,
         // it is still necessary to ensure the output column name is unique
         result.outputNames = Lists.newArrayList();
-//        final String outputName = getRef(namedExpression).getRootSegment().getPath(); //moved to before the if
+        final String outputName = getRef(namedExpression).getRootSegment().getPath(); //moved to before the if
         addToResultMaps(outputName, result, true);
       }
-      //    moved to before the if. String outputName = getRef(namedExpression).getRootSegment().getPath();
+      String outputName = getRef(namedExpression).getRootSegment().getPath();
       if (result != null && result.outputNames != null && result.outputNames.size() > 0) {
         boolean isMatched = false;
         for (int j = 0; j < result.outputNames.size(); j++) {
@@ -472,6 +471,7 @@ public class ProjectRecordBatch extends AbstractSingleRecordBatch<Project> {
             break;
           }
         }
+
         if (!isMatched) {
           continue;
         }
@@ -481,13 +481,11 @@ public class ProjectRecordBatch extends AbstractSingleRecordBatch<Project> {
           collector, context.getFunctionRegistry(), true, unionTypeEnabled);
       final MaterializedField outputField = MaterializedField.create(outputName, expr.getMajorType());
       if (collector.hasErrors()) {
-        throw new SchemaChangeException(String.format("Failure while trying to materialize incoming schema.  Errors:\n %s.",
-                collector.toErrorString()));
+        throw new SchemaChangeException(String.format("Failure while trying to materialize incoming schema.  Errors:\n %s.", collector.toErrorString()));
       }
 
       // add value vector to transfer if direct reference and this is allowed, otherwise, add to evaluation stack.
-      if (expr instanceof ValueVectorReadExpression
-          && incomingBatch.getSchema().getSelectionVectorMode() == SelectionVectorMode.NONE
+      if (expr instanceof ValueVectorReadExpression && incomingBatch.getSchema().getSelectionVectorMode() == SelectionVectorMode.NONE
           && !((ValueVectorReadExpression) expr).hasReadPath()
           && !isAnyWildcard
           && !transferFieldIds.contains(((ValueVectorReadExpression) expr).getFieldId().getFieldIds()[0])) {
@@ -554,7 +552,7 @@ public class ProjectRecordBatch extends AbstractSingleRecordBatch<Project> {
       CodeGenerator<Projector> codeGen = cg.getCodeGenerator();
       codeGen.plainJavaCapable(true);
       // Uncomment out this line to debug the generated code.
-      codeGen.saveCodeForDebugging(true);
+      //codeGen.saveCodeForDebugging(true);
       this.projector = context.getImplementationClass(codeGen);
       projector.setup(context, incomingBatch, this, transfers);
     } catch (ClassTransformationException | IOException e) {
