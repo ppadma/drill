@@ -107,7 +107,6 @@ public class ProjectMemoryManager extends RecordBatchMemoryManager {
     public ProjectMemoryManager(int configuredOutputSize) {
         super(configuredOutputSize);
         outputColumnSizes = new HashMap<>();
-        System.out.println("Created ProjectMemoryManager " + this);
     }
 
     public boolean isComplex(MajorType majorType) {
