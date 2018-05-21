@@ -74,6 +74,12 @@ public class OutputWidthVisitor extends AbstractExecExprVisitor<OutputWidthExpre
         OutputWidthExpression fixedWidth = getFixedLenExpr(holderExpr.getMajorType());
         if (fixedWidth != null) { return fixedWidth; }
         //KM_TBD Handling for HiveFunctionHolder
+        if (!(holderExpr instanceof DrillFuncHolderExpr)) {
+            // We currently only know how to handle DrillFuncs
+            // use a default if this is not a DrillFunc
+            return new FixedLenExpr(OutputSizeEstimateConstants.NON_DRILL_FUNCTION_OUTPUT_SIZE_ESTIMATE);
+        }
+
         final DrillFuncHolder holder = ((DrillFuncHolderExpr) holderExpr).getHolder();
         //KM_TBD: move constant val to a fun in template
         // Use the user-provided estimate

@@ -202,7 +202,8 @@ public class ProjectMemoryManager extends RecordBatchMemoryManager {
                         WidthType.VARIABLE, -1); //fieldWidth has to be obtained from the RecordBatchSizer
             } else if (isComplex(vv.getField().getType())) {
                 //Complex types are not yet supported. Treat complex types as 50 bytes wide
-                columnWidthInfo = new ColumnWidthInfo(vv, null, outputColumnType, WidthType.FIXED, 50);
+                columnWidthInfo = new ColumnWidthInfo(vv, null, outputColumnType, WidthType.FIXED,
+                                                      OutputSizeEstimateConstants.COMPLEX_FIELD_ESTIMATE);
             } else {
                 // Walk the tree of LogicalExpressions to get a tree of OutputWidthExpressions
                 OutputWidthVisitorState state = new OutputWidthVisitorState(this, outputColumnType);
