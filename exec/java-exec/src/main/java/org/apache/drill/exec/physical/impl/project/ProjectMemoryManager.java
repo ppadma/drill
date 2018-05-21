@@ -107,6 +107,7 @@ public class ProjectMemoryManager extends RecordBatchMemoryManager {
     public ProjectMemoryManager(int configuredOutputSize) {
         super(configuredOutputSize);
         outputColumnSizes = new HashMap<>();
+        System.out.println("Created ProjectMemoryManager " + this);
     }
 
     public boolean isComplex(MajorType majorType) {
@@ -230,9 +231,9 @@ public class ProjectMemoryManager extends RecordBatchMemoryManager {
 
     @Override
     public void update() {
+        //KM_TBD Remove
+        //System.out.println("Mem mgr 1 " + this + " incoming " + incomingBatch);
         RecordBatchSizer batchSizer = new RecordBatchSizer(incomingBatch);
-        final int recordCount = incomingBatch.getRecordCount();
-
         setRecordBatchSizer(batchSizer);
         rowWidth = 0;
         for (String expr : outputColumnSizes.keySet()) {
@@ -254,10 +255,24 @@ public class ProjectMemoryManager extends RecordBatchMemoryManager {
             }
             rowWidth += width;
         }
-        setOutputRowCount(getOutputBatchSize(), rowWidth);
-        int outPutRowCount = Math.min(getOutputRowCount(), batchSizer.rowCount());
-//        System.out.println("Output row count " + outPutRowCount + ", batchSizer.rowCount " + batchSizer.rowCount() + ", rowWidth " + rowWidth + " incoming rc " + recordCount);
+        int outPutRowCount;
+        if (rowWidth != 0) {
+          setOutputRowCount(getOutputBatchSize(), rowWidth);
+          outPutRowCount = Math.min(getOutputRowCount(), batchSizer.rowCount());
+        } else {
+            // KM_TBD : Verify if we should just do 1 row
+            // at a time, in this case, instead of allowing the entire batch
+
+            // if rowWidth == 0 then the memory manager does
+            // not have sufficient information to size the batch
+            // let the entire batch pass through
+            outPutRowCount = incomingBatch.getRecordCount();
+        }
+        //KM_TBD Remove
+        //System.out.println("Mem mgr " + this + " O/P rc " + outPutRowCount + ", batchSizer.rowCount " + batchSizer.rowCount() +
+        //                   ", rowWidth " + rowWidth + " incoming rc " + recordCount);
         setOutputRowCount(outPutRowCount);
+        //System.out.flush();
     }
 
 }

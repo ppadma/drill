@@ -159,10 +159,14 @@ public class ProjectRecordBatch extends AbstractSingleRecordBatch<Project> {
       return IterOutcome.NONE;
     }
 
-    // All output columns have been processed calculate the output row count
+    int incomingRecordCount = incoming.getRecordCount();
+    //calculate the output row count
     memoryManager.update();
 
-    int incomingRecordCount = incoming.getRecordCount();
+    //KM_TBD Remove this!
+//    assert incomingRecordCount == memoryManager.getOutputRowCount();
+//    System.out.println(" ic1 " + incomingRecordCount + " memMgr ic " + memoryManager.getOutputRowCount() + " inc " + incoming);
+//    System.out.flush();
 
     if (first && incomingRecordCount == 0) {
       if (complexWriters != null) {
@@ -207,6 +211,11 @@ public class ProjectRecordBatch extends AbstractSingleRecordBatch<Project> {
             }
           }
           incomingRecordCount = incoming.getRecordCount();
+          memoryManager.update();
+          //KM_TBD Remove this!
+//          assert incomingRecordCount == memoryManager.getOutputRowCount();
+//          System.out.println(" ic2 " + incomingRecordCount + " memMgr ic " + memoryManager.getOutputRowCount() + " inc " + incoming);
+//          System.out.flush();
         }
       }
     }
@@ -220,7 +229,12 @@ public class ProjectRecordBatch extends AbstractSingleRecordBatch<Project> {
     first = false;
     container.zeroVectors();
 
+
     int maxOuputRecordCount = memoryManager.getOutputRowCount();
+    //KM_TBD Remove this!
+//    System.out.println("Mem mgr" + this + " incoming " + incoming + " rc " + maxOuputRecordCount );
+//    System.out.println(" ic2 " + incomingRecordCount + " memMgr ic " + memoryManager.getOutputRowCount() + " inc " + incoming);
+//    System.out.flush();
     if (!doAlloc(maxOuputRecordCount)) {
       outOfMemory = true;
       return IterOutcome.OUT_OF_MEMORY;
@@ -252,6 +266,7 @@ public class ProjectRecordBatch extends AbstractSingleRecordBatch<Project> {
 
   private void handleRemainder() {
     final int remainingRecordCount = incoming.getRecordCount() - remainderIndex;
+    assert this.memoryManager.incomingBatch == incoming;
     final int recordsToProcess = Math.min(remainingRecordCount, memoryManager.getOutputRowCount());
     if (!doAlloc(recordsToProcess)) {
       outOfMemory = true;
