@@ -43,15 +43,15 @@ public class JoinBatchMemoryManager extends RecordBatchMemoryManager {
   }
 
   @Override
-  public int update(int inputIndex, int outputPosition) {
+  public int update(int inputIndex, int outputPosition, boolean useAggregate) {
     switch (inputIndex) {
       case LEFT_INDEX:
         setRecordBatchSizer(inputIndex, new RecordBatchSizer(leftIncoming));
-        leftRowWidth = getRecordBatchSizer(inputIndex).getRowAllocSize();
+        leftRowWidth = useAggregate ? (int) getAvgInputRowWidth(inputIndex) : getRecordBatchSizer(inputIndex).netRowWidth();
         break;
       case RIGHT_INDEX:
         setRecordBatchSizer(inputIndex, new RecordBatchSizer(rightIncoming));
-        rightRowWidth = getRecordBatchSizer(inputIndex).getRowAllocSize();
+        rightRowWidth = useAggregate ? (int) getAvgInputRowWidth(inputIndex) : getRecordBatchSizer(inputIndex).netRowWidth();
       default:
         break;
     }
@@ -84,6 +84,11 @@ public class JoinBatchMemoryManager extends RecordBatchMemoryManager {
     setOutgoingRowWidth(newOutgoingRowWidth);
 
     return adjustOutputRowCount(outputPosition + numOutputRowsRemaining);
+  }
+
+  @Override
+  public int update(int inputIndex, int outputPosition) {
+    return update(inputIndex, outputPosition, false);
   }
 
   @Override

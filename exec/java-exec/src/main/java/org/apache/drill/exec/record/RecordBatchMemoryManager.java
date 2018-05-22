@@ -21,6 +21,8 @@ import com.google.common.base.Preconditions;
 import org.apache.drill.exec.vector.UInt4Vector;
 import org.apache.drill.exec.vector.ValueVector;
 
+import java.util.List;
+
 public class RecordBatchMemoryManager {
   protected static final int MAX_NUM_ROWS = ValueVector.MAX_ROW_COUNT;
   protected static final int MIN_NUM_ROWS = 1;
@@ -152,6 +154,11 @@ public class RecordBatchMemoryManager {
 
   public void update() {};
 
+  public int update(int inputIndex, int outputPosition, boolean useAggregate) {
+    // by default just return the outputRowCount
+    return getOutputRowCount();
+  }
+
   public int getOutputRowCount() {
     return outputRowCount;
   }
@@ -240,5 +247,32 @@ public class RecordBatchMemoryManager {
 
   public int getOffsetVectorWidth() {
     return UInt4Vector.VALUE_WIDTH;
+  }
+
+  public void allocateVectors(VectorContainer container, int recordCount) {
+    // Allocate memory for the vectors.
+    // This will iteratively allocate memory for all nested columns underneath.
+    for (VectorWrapper w : container) {
+      RecordBatchSizer.ColumnSize colSize = getColumnSize(w.getField().getName());
+      colSize.allocateVector(w.getValueVector(), recordCount);
+    }
+    container.setRecordCount(0);
+  }
+
+  public void allocateVectors(VectorContainer container) {
+    allocateVectors(container, outputRowCount);
+  }
+
+  public void allocateVectors(List<ValueVector> valueVectors, int recordCount) {
+    // Allocate memory for the vectors.
+    // This will iteratively allocate memory for all nested columns underneath.
+    for (ValueVector v : valueVectors) {
+      RecordBatchSizer.ColumnSize colSize = getColumnSize(v.getField().getName());
+      colSize.allocateVector(v, recordCount);
+    }
+  }
+
+  public void allocateVectors(List<ValueVector> valueVectors) {
+    allocateVectors(valueVectors, outputRowCount);
   }
 }

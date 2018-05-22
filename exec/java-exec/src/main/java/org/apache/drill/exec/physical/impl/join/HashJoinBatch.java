@@ -57,6 +57,7 @@ import org.apache.drill.exec.physical.impl.common.HashPartition;
 import org.apache.drill.exec.physical.impl.spill.SpillSet;
 import org.apache.drill.exec.record.AbstractBinaryRecordBatch;
 import org.apache.drill.exec.record.BatchSchema;
+import org.apache.drill.exec.record.JoinBatchMemoryManager;
 import org.apache.drill.exec.record.MaterializedField;
 import org.apache.drill.exec.record.RecordBatch;
 import org.apache.drill.exec.record.VectorWrapper;
@@ -66,6 +67,9 @@ import org.apache.drill.exec.vector.ValueVector;
 import org.apache.drill.exec.vector.VariableWidthVector;
 import org.apache.drill.exec.vector.complex.AbstractContainerVector;
 import org.apache.calcite.rel.core.JoinRelType;
+
+import static org.apache.drill.exec.record.JoinBatchMemoryManager.LEFT_INDEX;
+import static org.apache.drill.exec.record.JoinBatchMemoryManager.RIGHT_INDEX;
 
 /**
  *   This class implements the runtime execution for the Hash-Join operator
@@ -162,6 +166,12 @@ public class HashJoinBatch extends AbstractBinaryRecordBatch<HashJoinPOP> {
   IntVector read_right_HV_vector; // HV vector that was read from the spilled batch
   private int maxBatchesInMemory;
 
+  private class HashJoinMemoryManager extends JoinBatchMemoryManager {
+    HashJoinMemoryManager(int outputBatchSize, RecordBatch leftBatch, RecordBatch rightBatch) {
+      super(outputBatchSize, leftBatch, rightBatch);
+    }
+  }
+
   /**
    * This holds information about the spilled partitions for the build and probe side.
    */
@@ -221,18 +231,20 @@ public class HashJoinBatch extends AbstractBinaryRecordBatch<HashJoinPOP> {
       throw new SchemaChangeException(e);
     }
 
-    // Build the container schema and set the counts
-    for (final VectorWrapper<?> w : container) {
-      w.getValueVector().allocateNew();
-    }
+    hashJoinProbe.setTargetOutputCount(batchMemoryManager.getOutputRowCount());
+    batchMemoryManager.allocateVectors(container);
+
     container.buildSchema(BatchSchema.SelectionVectorMode.NONE);
-    container.setRecordCount(outputRecords);
   }
 
   @Override
   protected boolean prefetchFirstBatchFromBothSides() {
     leftUpstream = sniffNonEmptyBatch(0, left);
     rightUpstream = sniffNonEmptyBatch(1, right);
+
+    // For build side, use aggregate i.e. average row width across batches
+    batchMemoryManager.update(LEFT_INDEX, 0);
+    batchMemoryManager.update(RIGHT_INDEX, 0, true);
 
     if (leftUpstream == IterOutcome.STOP || rightUpstream == IterOutcome.STOP) {
       state = BatchState.STOP;
@@ -262,6 +274,7 @@ public class HashJoinBatch extends AbstractBinaryRecordBatch<HashJoinPOP> {
    */
   private IterOutcome sniffNonEmptyBatch(int inputIndex, RecordBatch recordBatch) {
     while (true) {
+      // Reading next batch here.
       IterOutcome outcome = next(inputIndex, recordBatch);
 
       switch (outcome) {
@@ -333,9 +346,11 @@ public class HashJoinBatch extends AbstractBinaryRecordBatch<HashJoinPOP> {
            joinType != JoinRelType.INNER) {  // or if this is a left/full outer join
 
         // Allocate the memory for the vectors in the output container
-        allocateVectors();
+        batchMemoryManager.allocateVectors(container);
 
         outputRecords = hashJoinProbe.probeAndProject();
+
+        batchMemoryManager.updateOutgoingStats(outputRecords);
 
         /* We are here because of one the following
          * 1. Completed processing of all the records and we are done
@@ -694,6 +709,7 @@ public class HashJoinBatch extends AbstractBinaryRecordBatch<HashJoinPOP> {
       }
       // Get the next incoming record batch
       rightUpstream = next(HashJoinHelper.RIGHT_INPUT, buildBatch);
+      batchMemoryManager.update(RIGHT_INDEX, 0, true);
     }
 
     // Move the remaining current batches into their temp lists, or spill
@@ -879,6 +895,11 @@ public class HashJoinBatch extends AbstractBinaryRecordBatch<HashJoinPOP> {
 
     // Create empty partitions (in the ctor - covers the case where right side is empty)
     partitions = new HashPartition[0];
+
+    // get the output batch size from config.
+    int configuredBatchSize = (int) context.getOptions().getOption(ExecConstants.OUTPUT_BATCH_SIZE_VALIDATOR);
+    batchMemoryManager = new HashJoinBatch.HashJoinMemoryManager(configuredBatchSize, left, right);
+
   }
 
   /**
@@ -980,7 +1001,7 @@ public class HashJoinBatch extends AbstractBinaryRecordBatch<HashJoinPOP> {
   public HashJoinProbe setupHashJoinProbe() throws ClassTransformationException, IOException {
     final CodeGenerator<HashJoinProbe> cg = CodeGenerator.get(HashJoinProbe.TEMPLATE_DEFINITION, context.getOptions());
     cg.plainJavaCapable(true);
-    // cg.saveCodeForDebugging(true);
+   // cg.saveCodeForDebugging(true);
 
     //  No real code generation !!
 
