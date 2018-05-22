@@ -42,21 +42,7 @@ public class JoinBatchMemoryManager extends RecordBatchMemoryManager {
     this.rightIncoming = rightBatch;
   }
 
-  @Override
-  public int update(int inputIndex, int outputPosition) {
-    switch (inputIndex) {
-      case LEFT_INDEX:
-        setRecordBatchSizer(inputIndex, new RecordBatchSizer(leftIncoming));
-        leftRowWidth = getRecordBatchSizer(inputIndex).getRowAllocSize();
-        break;
-      case RIGHT_INDEX:
-        setRecordBatchSizer(inputIndex, new RecordBatchSizer(rightIncoming));
-        rightRowWidth = getRecordBatchSizer(inputIndex).getRowAllocSize();
-      default:
-        break;
-    }
-
-    updateIncomingStats(inputIndex);
+  private int updateInternal(int outputPosition) {
     final int newOutgoingRowWidth = leftRowWidth + rightRowWidth;
 
     // If outgoing row width is 0, just return. This is possible for empty batches or
@@ -87,14 +73,51 @@ public class JoinBatchMemoryManager extends RecordBatchMemoryManager {
   }
 
   @Override
-  public RecordBatchSizer.ColumnSize getColumnSize(String name) {
-    RecordBatchSizer leftSizer = getRecordBatchSizer(LEFT_INDEX);
-    RecordBatchSizer rightSizer = getRecordBatchSizer(RIGHT_INDEX);
-
-    if (leftSizer != null && leftSizer.getColumn(name) != null) {
-      return leftSizer.getColumn(name);
+  public int update(int inputIndex, int outputPosition, boolean useAggregate) {
+    switch (inputIndex) {
+      case LEFT_INDEX:
+        setRecordBatchSizer(inputIndex, new RecordBatchSizer(leftIncoming));
+        updateIncomingStats(inputIndex);
+        leftRowWidth = useAggregate ? (int) getAvgInputRowWidth(inputIndex) : getRecordBatchSizer(inputIndex).getRowAllocSize();
+        break;
+      case RIGHT_INDEX:
+        setRecordBatchSizer(inputIndex, new RecordBatchSizer(rightIncoming));
+        updateIncomingStats(inputIndex);
+        rightRowWidth = useAggregate ? (int) getAvgInputRowWidth(inputIndex) : getRecordBatchSizer(inputIndex).getRowAllocSize();
+      default:
+        break;
     }
-    return rightSizer == null ? null : rightSizer.getColumn(name);
+
+    return updateInternal(outputPosition);
+  }
+
+  @Override
+  public int update(int inputIndex, int outputPosition) {
+    return update(inputIndex, outputPosition, false);
+  }
+
+  @Override
+  public int update(RecordBatch batch, int inputIndex, int outputPosition) {
+    return update(batch, inputIndex, outputPosition, false);
+  }
+
+  @Override
+  public int update(RecordBatch batch, int inputIndex, int outputPosition, boolean useAggregate) {
+    switch (inputIndex) {
+      case LEFT_INDEX:
+        setRecordBatchSizer(inputIndex, new RecordBatchSizer(batch));
+        updateIncomingStats(inputIndex);
+        leftRowWidth = useAggregate ? (int) getAvgInputRowWidth(inputIndex) : getRecordBatchSizer(inputIndex).getRowAllocSize();
+        break;
+      case RIGHT_INDEX:
+        setRecordBatchSizer(inputIndex, new RecordBatchSizer(batch));
+        updateIncomingStats(inputIndex);
+        rightRowWidth = useAggregate ? (int) getAvgInputRowWidth(inputIndex) : getRecordBatchSizer(inputIndex).getRowAllocSize();
+      default:
+        break;
+    }
+
+    return updateInternal(outputPosition);
   }
 
   public enum Metric implements MetricDef {

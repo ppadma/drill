@@ -142,6 +142,7 @@ public class HashJoinMemoryCalculatorImpl implements HashJoinMemoryCalculator {
                            int maxBatchNumRecordsBuild,
                            int maxBatchNumRecordsProbe,
                            int outputBatchNumRecords,
+                           int outputBatchSize,
                            double loadFactor) {
       this.initialPartitions = initialPartitions;
     }
@@ -203,7 +204,7 @@ public class HashJoinMemoryCalculatorImpl implements HashJoinMemoryCalculator {
    * <h1>Life Cycle</h1>
    * <p>
    *   <ul>
-   *     <li><b>Step 0:</b> Call {@link #initialize(boolean, boolean, RecordBatch, RecordBatch, Set, long, int, int, int, int, int, int, double)}.
+   *     <li><b>Step 0:</b> Call {@link #initialize(boolean, boolean, RecordBatch, RecordBatch, Set, long, int, int, int, int, int, int, int, double)}.
    *     This will initialize the StateCalculate with the additional information it needs.</li>
    *     <li><b>Step 1:</b> Call {@link #getNumPartitions()} to see the number of partitions that fit in memory.</li>
    *     <li><b>Step 2:</b> Call {@link #shouldSpill()} To determine if spilling needs to occurr.</li>
@@ -234,6 +235,7 @@ public class HashJoinMemoryCalculatorImpl implements HashJoinMemoryCalculator {
     private int recordsPerPartitionBatchBuild;
     private int recordsPerPartitionBatchProbe;
     private int outputBatchNumRecords;
+    private int outputBatchSize;
     private Map<String, Long> buildValueSizes;
     private Map<String, Long> probeValueSizes;
     private Map<String, Long> keySizes;
@@ -273,6 +275,7 @@ public class HashJoinMemoryCalculatorImpl implements HashJoinMemoryCalculator {
                            int maxBatchNumRecordsBuild,
                            int maxBatchNumRecordsProbe,
                            int outputBatchNumRecords,
+                           int outputBatchSize,
                            double loadFactor) {
       Preconditions.checkNotNull(buildSideBatch);
       Preconditions.checkNotNull(probeSideBatch);
@@ -314,6 +317,7 @@ public class HashJoinMemoryCalculatorImpl implements HashJoinMemoryCalculator {
         maxBatchNumRecordsBuild,
         maxBatchNumRecordsProbe,
         outputBatchNumRecords,
+        outputBatchSize,
         loadFactor);
     }
 
@@ -366,6 +370,7 @@ public class HashJoinMemoryCalculatorImpl implements HashJoinMemoryCalculator {
                               int maxBatchNumRecordsBuild,
                               int maxBatchNumRecordsProbe,
                               int outputBatchNumRecords,
+                              int outputBatchSize,
                               double loadFactor) {
       Preconditions.checkState(!firstInitialized);
       Preconditions.checkArgument(initialPartitions >= 1);
@@ -388,6 +393,7 @@ public class HashJoinMemoryCalculatorImpl implements HashJoinMemoryCalculator {
       this.maxBatchNumRecordsBuild = maxBatchNumRecordsBuild;
       this.maxBatchNumRecordsProbe = maxBatchNumRecordsProbe;
       this.outputBatchNumRecords = outputBatchNumRecords;
+      this.outputBatchSize = outputBatchSize;
 
       calculateMemoryUsage();
 
@@ -448,8 +454,7 @@ public class HashJoinMemoryCalculatorImpl implements HashJoinMemoryCalculator {
         safetyFactor,
         reserveHash);
 
-      maxOutputBatchSize = computeMaxOutputBatchSize(buildValueSizes, probeValueSizes, keySizes,
-        outputBatchNumRecords, safetyFactor, fragmentationFactor);
+      maxOutputBatchSize = (long) (outputBatchSize * fragmentationFactor * safetyFactor);
 
       long probeReservedMemory;
 
@@ -517,18 +522,6 @@ public class HashJoinMemoryCalculatorImpl implements HashJoinMemoryCalculator {
         message = phase + message;
         log.warn(message);
       }
-    }
-
-    public static long computeMaxOutputBatchSize(Map<String, Long> buildValueSizes,
-                                                 Map<String, Long> probeValueSizes,
-                                                 Map<String, Long> keySizes,
-                                                 int outputNumRecords,
-                                                 double safetyFactor,
-                                                 double fragmentationFactor) {
-      long outputSize = HashTableSizeCalculatorConservativeImpl.computeVectorSizes(keySizes, outputNumRecords, safetyFactor)
-        + HashTableSizeCalculatorConservativeImpl.computeVectorSizes(buildValueSizes, outputNumRecords, safetyFactor)
-        + HashTableSizeCalculatorConservativeImpl.computeVectorSizes(probeValueSizes, outputNumRecords, safetyFactor);
-      return RecordBatchSizer.multiplyByFactor(outputSize, fragmentationFactor);
     }
 
     @Override

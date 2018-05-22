@@ -53,6 +53,7 @@ public class TestBuildSidePartitioningImpl {
       maxBatchNumRecords,
       maxBatchNumRecords,
       10,
+      16000,
       .75);
 
     final HashJoinMemoryCalculator.PartitionStatSet partitionStatSet =
@@ -98,6 +99,7 @@ public class TestBuildSidePartitioningImpl {
       maxBatchNumRecords,
       maxBatchNumRecords,
       10,
+      16000,
       .75);
 
     final HashJoinMemoryCalculator.PartitionStatSet partitionStatSet =
@@ -144,6 +146,7 @@ public class TestBuildSidePartitioningImpl {
       maxBatchNumRecords,
       maxBatchNumRecords,
       10,
+      16000,
       .75);
 
     final HashJoinMemoryCalculator.PartitionStatSet partitionStatSet =
@@ -192,6 +195,7 @@ public class TestBuildSidePartitioningImpl {
       maxBatchNumRecords,
       maxBatchNumRecords,
       10,
+      16000,
       .75);
 
     final PartitionStatImpl partition1 = new PartitionStatImpl();
@@ -243,6 +247,7 @@ public class TestBuildSidePartitioningImpl {
       maxBatchNumRecords,
       maxBatchNumRecords,
       10,
+      16000,
       .75);
 
     final PartitionStatImpl partition1 = new PartitionStatImpl();

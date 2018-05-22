@@ -97,6 +97,10 @@ public abstract class AbstractBinaryRecordBatch<T extends PhysicalOperator> exte
     return (leftOutcome == IterOutcome.NONE && rightOutcome == IterOutcome.NONE);
   }
 
+  public RecordBatchMemoryManager getBatchMemoryManager() {
+    return batchMemoryManager;
+  }
+
   protected void updateBatchMemoryManagerStats() {
     stats.setLongStat(JoinBatchMemoryManager.Metric.LEFT_INPUT_BATCH_COUNT,
       batchMemoryManager.getNumIncomingBatches(JoinBatchMemoryManager.LEFT_INDEX));
