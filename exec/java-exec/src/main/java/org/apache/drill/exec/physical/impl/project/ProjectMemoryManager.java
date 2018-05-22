@@ -52,6 +52,9 @@ public class ProjectMemoryManager extends RecordBatchMemoryManager {
     int variableWidthColumnCount = 0;
     int fixedWidthColumnCount = 0;
 
+    // Holds sum of all fixed width column widths
+    int totalFixedWidthColumnWidth = 0;
+
     enum WidthType {
         FIXED,
         VARIABLE
@@ -95,11 +98,15 @@ public class ProjectMemoryManager extends RecordBatchMemoryManager {
         public String getName() { return name; }
     }
 
-    public void setIncomingBatch(RecordBatch recordBatch) {
+    void ShoulgNotReachHere() {
+        throw new IllegalStateException();
+    }
+
+    private void setIncomingBatch(RecordBatch recordBatch) {
         incomingBatch = recordBatch;
     }
 
-    public void setOutgoingBatch(ProjectRecordBatch outgoingBatch) {
+    private void setOutgoingBatch(ProjectRecordBatch outgoingBatch) {
         this.outgoingBatch = outgoingBatch;
     }
 
@@ -185,7 +192,6 @@ public class ProjectMemoryManager extends RecordBatchMemoryManager {
 
     void addField(ValueVector vv, LogicalExpression logicalExpression, OutputColumnType outputColumnType, String path) {
         if(isFixedWidth(vv)) {
-            fixedWidthColumnCount++;
             addFixedWidthField(vv, outputColumnType);
         } else {
             variableWidthColumnCount++;
@@ -220,10 +226,23 @@ public class ProjectMemoryManager extends RecordBatchMemoryManager {
 
     void addFixedWidthField(ValueVector vv, OutputColumnType outputColumnType) {
         assert isFixedWidth(vv);
+        fixedWidthColumnCount++;
         int fixedFieldWidth = getWidthOfFixedWidthType(vv);
-        ColumnWidthInfo columnWidthInfo = new ColumnWidthInfo(vv, null, outputColumnType, WidthType.FIXED,
-                                                           fixedFieldWidth);
-        outputColumnSizes.put(columnWidthInfo.getName(), columnWidthInfo);
+        totalFixedWidthColumnWidth += fixedFieldWidth;
+//        ColumnWidthInfo columnWidthInfo = new ColumnWidthInfo(vv, null, outputColumnType, WidthType.FIXED,
+//                                                           fixedFieldWidth);
+//        outputColumnSizes.put(columnWidthInfo.getName(), columnWidthInfo);
+    }
+
+    public void init(RecordBatch incomingBatch, ProjectRecordBatch outgoingBatch) {
+        setIncomingBatch(incomingBatch);
+        setOutgoingBatch(outgoingBatch);
+        reset();
+    }
+
+    private void reset() {
+        rowWidth = 0;
+        totalFixedWidthColumnWidth = 0;
     }
 
     @Override
@@ -237,7 +256,8 @@ public class ProjectMemoryManager extends RecordBatchMemoryManager {
             ColumnWidthInfo columnWidthInfo = outputColumnSizes.get(expr);
             int width = -1;
             if (columnWidthInfo.isFixedWidth()) {
-                width = columnWidthInfo.getWidth();
+                // fixed width columns are accumulated in totalFixedWidthColumnWidth
+                ShoulgNotReachHere();
             } else {
                 //Walk the tree of OutputWidthExpressions to get a FixedLenExpr
                 //As the tree is walked, the RecordBatchSizer and function annotations
@@ -252,6 +272,9 @@ public class ProjectMemoryManager extends RecordBatchMemoryManager {
             }
             rowWidth += width;
         }
+        rowWidth += totalFixedWidthColumnWidth;
+        //KM_TBD Remove this
+        //System.out.println("rw " + rowWidth + "| tfw " + totalFixedWidthColumnWidth + "| batch " + this);
         int outPutRowCount;
         if (rowWidth != 0) {
           setOutputRowCount(getOutputBatchSize(), rowWidth);
@@ -266,9 +289,9 @@ public class ProjectMemoryManager extends RecordBatchMemoryManager {
             outPutRowCount = incomingBatch.getRecordCount();
         }
         //KM_TBD Remove
-        //System.out.println("Mem mgr " + this + " O/P rc " + outPutRowCount + ", batchSizer.rowCount " + batchSizer.rowCount() +
-        //                   ", rowWidth " + rowWidth + " incoming rc " + recordCount);
-        //System.out.flush();
+//        System.out.println("Mem mgr " + this + " O/P rc " + outPutRowCount + ", batchSizer.rowCount " + batchSizer.rowCount() +
+//                           ", rowWidth " + rowWidth + " incoming rc " + incomingBatch.getRecordCount());
+//        System.out.flush();
         setOutputRowCount(outPutRowCount);
     }
 }

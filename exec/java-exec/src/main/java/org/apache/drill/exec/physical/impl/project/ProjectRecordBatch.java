@@ -161,11 +161,12 @@ public class ProjectRecordBatch extends AbstractSingleRecordBatch<Project> {
 
     int incomingRecordCount = incoming.getRecordCount();
     //calculate the output row count
+    //System.out.println("Exprs " + ((Project)this.popConfig).getExprs().size() + " this " + this);
     memoryManager.update();
 
     //KM_TBD Remove this!
 //    assert incomingRecordCount == memoryManager.getOutputRowCount();
-//    System.out.println(" ic1 " + incomingRecordCount + " memMgr ic " + memoryManager.getOutputRowCount() + " inc " + incoming);
+//    System.out.println("doWork ic1 " + incomingRecordCount + " memMgr ic " + memoryManager.getOutputRowCount() + " inc " + incoming);
 //    System.out.flush();
 
     if (first && incomingRecordCount == 0) {
@@ -268,6 +269,11 @@ public class ProjectRecordBatch extends AbstractSingleRecordBatch<Project> {
     final int remainingRecordCount = incoming.getRecordCount() - remainderIndex;
     assert this.memoryManager.incomingBatch == incoming;
     final int recordsToProcess = Math.min(remainingRecordCount, memoryManager.getOutputRowCount());
+    //KM_TBD Remove this
+//    System.out.println("handleRemainder ic1 " + incoming.getRecordCount() + " memMgr ic " +
+//                        memoryManager.getOutputRowCount() + " rtp " + recordsToProcess );
+//    System.out.flush();
+
     if (!doAlloc(recordsToProcess)) {
       outOfMemory = true;
       return;
@@ -353,8 +359,7 @@ public class ProjectRecordBatch extends AbstractSingleRecordBatch<Project> {
   }
 
   private void setupNewSchemaFromInput(RecordBatch incomingBatch) throws SchemaChangeException {
-    memoryManager.setIncomingBatch(incomingBatch);
-    memoryManager.setOutgoingBatch(this);
+    memoryManager.init(incomingBatch, this);
     if (allocationVectors != null) {
       for (final ValueVector v : allocationVectors) {
         v.clear();
