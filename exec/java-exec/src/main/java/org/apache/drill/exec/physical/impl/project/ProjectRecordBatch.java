@@ -529,6 +529,7 @@ public class ProjectRecordBatch extends AbstractSingleRecordBatch<Project> {
 
         // save the field reference for later for getting schema when input is empty
         complexFieldReferencesList.add(namedExpression.getRef());
+        memoryManager.addComplexField(null); // this will just add an estimate to the row width
       } else {
         // need to do evaluation.
         final ValueVector vector = container.addOrGet(outputField, callBack);

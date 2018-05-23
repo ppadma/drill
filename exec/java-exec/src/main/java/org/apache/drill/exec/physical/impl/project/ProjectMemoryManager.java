@@ -17,6 +17,7 @@
  */
 package org.apache.drill.exec.physical.impl.project;
 
+import com.sun.media.jfxmedia.logging.Logger;
 import org.apache.drill.common.expression.LogicalExpression;
 import org.apache.drill.common.types.TypeProtos.DataMode;
 import org.apache.drill.common.types.TypeProtos.MajorType;
@@ -33,12 +34,16 @@ import org.apache.drill.exec.vector.UInt1Vector;
 import org.apache.drill.exec.vector.UInt4Vector;
 import org.apache.drill.exec.vector.ValueVector;
 import org.apache.drill.exec.physical.impl.project.OutputWidthExpression.FixedLenExpr;
+import org.apache.hadoop.log.LogLevel;
+
 import java.util.HashMap;
 import java.util.Map;
 
 import static org.apache.drill.exec.vector.AllocationHelper.STD_REPETITION_FACTOR;
 
 public class ProjectMemoryManager extends RecordBatchMemoryManager {
+
+    static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(ProjectMemoryManager.class);
 
     public RecordBatch getIncomingBatch() {
         return incomingBatch;
@@ -51,9 +56,14 @@ public class ProjectMemoryManager extends RecordBatchMemoryManager {
     Map<String, ColumnWidthInfo> outputColumnSizes;
     int variableWidthColumnCount = 0;
     int fixedWidthColumnCount = 0;
+    int complexColumnsCount = 0;
+
 
     // Holds sum of all fixed width column widths
     int totalFixedWidthColumnWidth = 0;
+    // Holds sum of all complex column widths
+    // Currently, this is just a guess
+    int totalComplexColumnWidth = 0;
 
     enum WidthType {
         FIXED,
@@ -119,7 +129,6 @@ public class ProjectMemoryManager extends RecordBatchMemoryManager {
         MinorType minorType = majorType.getMinorType();
         return minorType == MinorType.MAP || minorType == MinorType.UNION || minorType == MinorType.LIST;
     }
-
 
     boolean isFixedWidth(TypedFieldId fieldId) {
         ValueVector vv = getOutgoingValueVector(fieldId);
@@ -192,21 +201,19 @@ public class ProjectMemoryManager extends RecordBatchMemoryManager {
 
     void addField(ValueVector vv, LogicalExpression logicalExpression, OutputColumnType outputColumnType, String path) {
         if(isFixedWidth(vv)) {
-            addFixedWidthField(vv, outputColumnType);
+            addFixedWidthField(vv);
         } else {
             variableWidthColumnCount++;
             ColumnWidthInfo columnWidthInfo;
             //Variable width transfers
             if(outputColumnType == OutputColumnType.TRANSFER) {
                 String columnName = path;
-
                 VarLenReadExpr readExpr = new VarLenReadExpr(columnName);
                 columnWidthInfo = new ColumnWidthInfo(vv, readExpr, outputColumnType,
                         WidthType.VARIABLE, -1); //fieldWidth has to be obtained from the RecordBatchSizer
             } else if (isComplex(vv.getField().getType())) {
-                //Complex types are not yet supported. Treat complex types as 50 bytes wide
-                columnWidthInfo = new ColumnWidthInfo(vv, null, outputColumnType, WidthType.FIXED,
-                                                      OutputSizeEstimateConstants.COMPLEX_FIELD_ESTIMATE);
+                addComplexField(vv);
+                return;
             } else {
                 // Walk the tree of LogicalExpressions to get a tree of OutputWidthExpressions
                 OutputWidthVisitorState state = new OutputWidthVisitorState(this, outputColumnType);
@@ -218,20 +225,19 @@ public class ProjectMemoryManager extends RecordBatchMemoryManager {
         }
     }
 
-    void addFixedWidthField(TypedFieldId fieldId, OutputColumnType outputColumnType) {
-        ValueVector vv = getOutgoingValueVector(fieldId);
-        addFixedWidthField(vv, outputColumnType);
+    void addComplexField(ValueVector vv) {
+        //Complex types are not yet supported. Just use a guess for the size
+        assert vv == null || isComplex(vv.getField().getType());
+        complexColumnsCount++;
+        // just a guess
+        totalComplexColumnWidth +=  OutputSizeEstimateConstants.COMPLEX_FIELD_ESTIMATE;
     }
 
-
-    void addFixedWidthField(ValueVector vv, OutputColumnType outputColumnType) {
+    void addFixedWidthField(ValueVector vv) {
         assert isFixedWidth(vv);
         fixedWidthColumnCount++;
         int fixedFieldWidth = getWidthOfFixedWidthType(vv);
         totalFixedWidthColumnWidth += fixedFieldWidth;
-//        ColumnWidthInfo columnWidthInfo = new ColumnWidthInfo(vv, null, outputColumnType, WidthType.FIXED,
-//                                                           fixedFieldWidth);
-//        outputColumnSizes.put(columnWidthInfo.getName(), columnWidthInfo);
     }
 
     public void init(RecordBatch incomingBatch, ProjectRecordBatch outgoingBatch) {
@@ -243,15 +249,18 @@ public class ProjectMemoryManager extends RecordBatchMemoryManager {
     private void reset() {
         rowWidth = 0;
         totalFixedWidthColumnWidth = 0;
+        totalComplexColumnWidth = 0;
+
+        fixedWidthColumnCount = 0;
+        complexColumnsCount = 0;
     }
 
     @Override
     public void update() {
-        //KM_TBD Remove
-        //System.out.println("Mem mgr 1 " + this + " incoming " + incomingBatch);
         RecordBatchSizer batchSizer = new RecordBatchSizer(incomingBatch);
         setRecordBatchSizer(batchSizer);
         rowWidth = 0;
+        int totalVariableColumnWidth = 0;
         for (String expr : outputColumnSizes.keySet()) {
             ColumnWidthInfo columnWidthInfo = outputColumnSizes.get(expr);
             int width = -1;
@@ -270,28 +279,32 @@ public class ProjectMemoryManager extends RecordBatchMemoryManager {
                 width = ((FixedLenExpr)reducedExpr).getWidth();
                 assert width >= 0;
             }
-            rowWidth += width;
+            totalVariableColumnWidth += width;
         }
         rowWidth += totalFixedWidthColumnWidth;
-        //KM_TBD Remove this
-        //System.out.println("rw " + rowWidth + "| tfw " + totalFixedWidthColumnWidth + "| batch " + this);
+        rowWidth += totalComplexColumnWidth;
+        rowWidth += totalVariableColumnWidth;
         int outPutRowCount;
         if (rowWidth != 0) {
           setOutputRowCount(getOutputBatchSize(), rowWidth);
           outPutRowCount = Math.min(getOutputRowCount(), batchSizer.rowCount());
         } else {
-            // KM_TBD : Verify if we should just do 1 row
+            // KM_TBD Verify if we should just do 1 row
             // at a time, in this case, instead of allowing the entire batch
 
             // if rowWidth == 0 then the memory manager does
             // not have sufficient information to size the batch
             // let the entire batch pass through
+            ShoulgNotReachHere();
             outPutRowCount = incomingBatch.getRecordCount();
         }
-        //KM_TBD Remove
-//        System.out.println("Mem mgr " + this + " O/P rc " + outPutRowCount + ", batchSizer.rowCount " + batchSizer.rowCount() +
-//                           ", rowWidth " + rowWidth + " incoming rc " + incomingBatch.getRecordCount());
-//        System.out.flush();
+        logger.trace("update() : Output RC " + outPutRowCount + ", BatchSizer RC " + batchSizer.rowCount()
+                     + ", incoming RC " + incomingBatch.getRecordCount() + " width " + rowWidth
+                     + ", total fixed width " + totalFixedWidthColumnWidth
+                     + ", total variable width " + totalVariableColumnWidth
+                     + ", total complex width " + totalComplexColumnWidth
+                     + ", manager " + this
+                     + ", incoming " + incomingBatch);
         setOutputRowCount(outPutRowCount);
     }
 }
