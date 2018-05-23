@@ -17,7 +17,6 @@
  */
 package org.apache.drill.exec.physical.impl.project;
 
-import com.sun.media.jfxmedia.logging.Logger;
 import org.apache.drill.common.expression.LogicalExpression;
 import org.apache.drill.common.types.TypeProtos.DataMode;
 import org.apache.drill.common.types.TypeProtos.MajorType;
