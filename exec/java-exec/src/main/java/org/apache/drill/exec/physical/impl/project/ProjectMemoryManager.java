@@ -293,7 +293,7 @@ public class ProjectMemoryManager extends RecordBatchMemoryManager {
             // if rowWidth == 0 then the memory manager does
             // not have sufficient information to size the batch
             // let the entire batch pass through
-            ShoulgNotReachHere();
+            //ShoulgNotReachHere(); // OK to be here. RB sizer will give 0 width if incoming rc == 0
             outPutRowCount = incomingBatch.getRecordCount();
         }
         logger.trace("update() : Output RC " + outPutRowCount + ", BatchSizer RC " + batchSizer.rowCount()
