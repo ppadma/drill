@@ -33,7 +33,6 @@ import org.apache.drill.exec.vector.UInt1Vector;
 import org.apache.drill.exec.vector.UInt4Vector;
 import org.apache.drill.exec.vector.ValueVector;
 import org.apache.drill.exec.physical.impl.project.OutputWidthExpression.FixedLenExpr;
-import org.apache.hadoop.log.LogLevel;
 
 import java.util.HashMap;
 import java.util.Map;
