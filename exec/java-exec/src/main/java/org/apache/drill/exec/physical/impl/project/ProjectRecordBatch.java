@@ -161,13 +161,10 @@ public class ProjectRecordBatch extends AbstractSingleRecordBatch<Project> {
 
     int incomingRecordCount = incoming.getRecordCount();
     //calculate the output row count
-    //System.out.println("Exprs " + ((Project)this.popConfig).getExprs().size() + " this " + this);
+   logger.trace("doWork(): Exprs size " + ((Project)this.popConfig).getExprs().size()
+                + ", incoming rc " + incomingRecordCount + " incoming " + incoming
+                + ", project " + this);
     memoryManager.update();
-
-    //KM_TBD Remove this!
-//    assert incomingRecordCount == memoryManager.getOutputRowCount();
-//    System.out.println("doWork ic1 " + incomingRecordCount + " memMgr ic " + memoryManager.getOutputRowCount() + " inc " + incoming);
-//    System.out.flush();
 
     if (first && incomingRecordCount == 0) {
       if (complexWriters != null) {
@@ -175,8 +172,8 @@ public class ProjectRecordBatch extends AbstractSingleRecordBatch<Project> {
         while (incomingRecordCount == 0) {
           if (getLastKnownOutcome() == EMIT) {
             throw new UnsupportedOperationException("Currently functions producing complex types as output is not " +
-              "supported in project list for subquery between LATERAL and UNNEST. Please re-write the query using this " +
-              "function in the projection list of outermost query.");
+                    "supported in project list for subquery between LATERAL and UNNEST. Please re-write the query using this " +
+                    "function in the projection list of outermost query.");
           }
 
           next = next(incoming);
@@ -196,7 +193,7 @@ public class ProjectRecordBatch extends AbstractSingleRecordBatch<Project> {
             // been setup during setupNewSchema
             for (FieldReference fieldReference : complexFieldReferencesList) {
               MaterializedField field = MaterializedField.create(fieldReference.getAsNamePart().getName(),
-                UntypedNullHolder.TYPE);
+                      UntypedNullHolder.TYPE);
               container.add(new UntypedNullVector(field, container.getAllocator()));
             }
             container.buildSchema(SelectionVectorMode.NONE);
@@ -213,10 +210,9 @@ public class ProjectRecordBatch extends AbstractSingleRecordBatch<Project> {
           }
           incomingRecordCount = incoming.getRecordCount();
           memoryManager.update();
-          //KM_TBD Remove this!
-//          assert incomingRecordCount == memoryManager.getOutputRowCount();
-//          System.out.println(" ic2 " + incomingRecordCount + " memMgr ic " + memoryManager.getOutputRowCount() + " inc " + incoming);
-//          System.out.flush();
+          logger.trace("doWork(): mem mngr count 1 " + memoryManager.getOutputRowCount()
+                  + ", incoming rc " + incomingRecordCount + " incoming " + incoming
+                  + ", project " + this);
         }
       }
     }
@@ -232,16 +228,19 @@ public class ProjectRecordBatch extends AbstractSingleRecordBatch<Project> {
 
 
     int maxOuputRecordCount = memoryManager.getOutputRowCount();
-    //KM_TBD Remove this!
-//    System.out.println("Mem mgr" + this + " incoming " + incoming + " rc " + maxOuputRecordCount );
-//    System.out.println(" ic2 " + incomingRecordCount + " memMgr ic " + memoryManager.getOutputRowCount() + " inc " + incoming);
-//    System.out.flush();
+      logger.trace("doWork(): mem mngr count 2 " + memoryManager.getOutputRowCount()
+              + ", incoming rc " + incomingRecordCount + " incoming " + incoming
+              + ", project " + this);
     if (!doAlloc(maxOuputRecordCount)) {
       outOfMemory = true;
       return IterOutcome.OUT_OF_MEMORY;
     }
-
+    long projectStartTime = System.currentTimeMillis();
     final int outputRecords = projector.projectRecords(this.incoming,0, maxOuputRecordCount, 0);
+    long projectEndTime = System.currentTimeMillis();
+
+    logger.trace("doWork: projection" + " records " + outputRecords + ", time " + (projectEndTime - projectStartTime) + " ms");
+
     if (outputRecords < incomingRecordCount) {
       setValueCount(outputRecords);
       hasRemainder = true;
@@ -269,16 +268,19 @@ public class ProjectRecordBatch extends AbstractSingleRecordBatch<Project> {
     final int remainingRecordCount = incoming.getRecordCount() - remainderIndex;
     assert this.memoryManager.incomingBatch == incoming;
     final int recordsToProcess = Math.min(remainingRecordCount, memoryManager.getOutputRowCount());
-    //KM_TBD Remove this
-//    System.out.println("handleRemainder ic1 " + incoming.getRecordCount() + " memMgr ic " +
-//                        memoryManager.getOutputRowCount() + " rtp " + recordsToProcess );
-//    System.out.flush();
 
     if (!doAlloc(recordsToProcess)) {
       outOfMemory = true;
       return;
     }
+    logger.trace("handleRemainder: remaining rc " + remainingRecordCount + " toProcess " + recordsToProcess
+                 + " remainder index " + remainderIndex + " incoming " + incoming + " project " + this);
+
+    long projectStartTime = System.currentTimeMillis();
     final int projRecords = projector.projectRecords(this.incoming, remainderIndex, recordsToProcess, 0);
+    long projectEndTime = System.currentTimeMillis();
+
+    logger.trace("handleRemainder: projection" + "records " + projRecords + ", time " + (projectEndTime - projectStartTime) + " ms");
     if (projRecords < remainingRecordCount) {
       setValueCount(projRecords);
       this.recordCount = projRecords;
@@ -359,6 +361,7 @@ public class ProjectRecordBatch extends AbstractSingleRecordBatch<Project> {
   }
 
   private void setupNewSchemaFromInput(RecordBatch incomingBatch) throws SchemaChangeException {
+    long setupNewSchemaStartTime = System.currentTimeMillis();
     memoryManager.init(incomingBatch, this);
     if (allocationVectors != null) {
       for (final ValueVector v : allocationVectors) {
@@ -550,7 +553,6 @@ public class ProjectRecordBatch extends AbstractSingleRecordBatch<Project> {
             vvIn.makeTransferPair(vector);
           }
         }
-        logger.debug("Added eval for project expression.");
       }
     }
 
@@ -564,6 +566,9 @@ public class ProjectRecordBatch extends AbstractSingleRecordBatch<Project> {
     } catch (ClassTransformationException | IOException e) {
       throw new SchemaChangeException("Failure while attempting to load generated class", e);
     }
+
+    long setupNewSchemaEndTime = System.currentTimeMillis();
+    logger.trace("setupNewSchemaFromInput: time " + (setupNewSchemaEndTime - setupNewSchemaStartTime) + " ms" + ", proj " + this + " incoming " + incomingBatch );
   }
 
   @Override

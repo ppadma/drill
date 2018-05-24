@@ -29,7 +29,7 @@ import org.junit.rules.TestRule;
 
 @Category({SlowTest.class})
 public class TestLargeFileCompilation extends BaseTestQuery {
-  @Rule public final TestRule TIMEOUT = TestTools.getTimeoutRule(150000); // 150secs
+  @Rule public final TestRule TIMEOUT = TestTools.getTimeoutRule(1500000); // 150secs
 
   private static final String LARGE_QUERY_GROUP_BY;
 
@@ -143,6 +143,16 @@ public class TestLargeFileCompilation extends BaseTestQuery {
   public void testGROUP_BY() throws Exception {
     testNoResult("alter session set `%s`='JDK'", ClassCompilerSelector.JAVA_COMPILER_OPTION);
     testNoResult(ITERATION_COUNT, LARGE_QUERY_GROUP_BY);
+  }
+
+  @Test
+  public void foo() throws Exception{
+    for (int i = 0; i < 5; i++) {
+      long start = System.currentTimeMillis();
+      testEXTERNAL_SORT();
+      long end = System.currentTimeMillis();
+      System.out.println("Iteration " + i + " time " + (end - start));
+    }
   }
 
   @Test

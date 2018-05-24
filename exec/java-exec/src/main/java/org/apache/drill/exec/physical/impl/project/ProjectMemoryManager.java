@@ -198,6 +198,10 @@ public class ProjectMemoryManager extends RecordBatchMemoryManager {
     }
 
     void addField(ValueVector vv, LogicalExpression logicalExpression, OutputColumnType outputColumnType, String path) {
+      return;
+    }
+
+    void addField2(ValueVector vv, LogicalExpression logicalExpression, OutputColumnType outputColumnType, String path) {
         if(isFixedWidth(vv)) {
             addFixedWidthField(vv);
         } else {
@@ -255,7 +259,10 @@ public class ProjectMemoryManager extends RecordBatchMemoryManager {
 
     @Override
     public void update() {
+        long updateStartTime = System.currentTimeMillis();
         RecordBatchSizer batchSizer = new RecordBatchSizer(incomingBatch);
+        long batchSizerEndTime = System.currentTimeMillis();
+
         setRecordBatchSizer(batchSizer);
         rowWidth = 0;
         int totalVariableColumnWidth = 0;
@@ -296,11 +303,14 @@ public class ProjectMemoryManager extends RecordBatchMemoryManager {
             //ShoulgNotReachHere(); // OK to be here. RB sizer will give 0 width if incoming rc == 0
             outPutRowCount = incomingBatch.getRecordCount();
         }
+        long updateEndTime = System.currentTimeMillis();
         logger.trace("update() : Output RC " + outPutRowCount + ", BatchSizer RC " + batchSizer.rowCount()
                      + ", incoming RC " + incomingBatch.getRecordCount() + " width " + rowWidth
                      + ", total fixed width " + totalFixedWidthColumnWidth
                      + ", total variable width " + totalVariableColumnWidth
                      + ", total complex width " + totalComplexColumnWidth
+                     + ", batchSizer time " + (batchSizerEndTime - updateStartTime)  + " ms"
+                     + ", update time " + (updateEndTime - updateStartTime)  + " ms"
                      + ", manager " + this
                      + ", incoming " + incomingBatch);
         setOutputRowCount(outPutRowCount);

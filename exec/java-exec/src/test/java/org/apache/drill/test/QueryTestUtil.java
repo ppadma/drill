@@ -22,7 +22,6 @@ import java.util.Properties;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import org.apache.drill.test.BaseTestQuery.SilentListener;
 import org.apache.drill.common.config.DrillConfig;
 import org.apache.drill.exec.ExecConstants;
 import org.apache.drill.exec.client.DrillClient;
@@ -114,8 +113,9 @@ public class QueryTestUtil {
     DrillConfig config = drillClient.getConfig();
     AwaitableUserResultsListener resultListener =
         new AwaitableUserResultsListener(
-            config.getBoolean(TEST_QUERY_PRINTING_SILENT) ?
-                new SilentListener() :
+                //KM_TBD Change
+//            config.getBoolean(TEST_QUERY_PRINTING_SILENT) ?
+//                new SilentListener() :
                 new PrintingResultsListener(config, Format.TSV, VectorUtil.DEFAULT_COLUMN_WIDTH)
         );
     drillClient.runQuery(type, query, resultListener);
