@@ -767,9 +767,9 @@ public class Foreman implements Runnable {
       // Debug option: write query profile before sending final results so that
       // the client can be certain the profile exists.
 
-//      if (profileOption == ProfileOption.SYNC) {
+      if (profileOption == ProfileOption.SYNC) {
         queryManager.writeFinalProfile(uex);
-//      }
+      }
 
       /*
        * If sending the result fails, we don't really have any way to modify the result we tried to send;

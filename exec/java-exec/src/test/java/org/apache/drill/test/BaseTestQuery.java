@@ -377,7 +377,6 @@ public class BaseTestQuery extends ExecTest {
     }
   }
 
-
   protected static void testNoResult(int interation, String query, Object... args) throws Exception {
     query = String.format(query, args);
     logger.debug("Running query:\n--------------\n" + query);

@@ -197,11 +197,11 @@ public class ProjectMemoryManager extends RecordBatchMemoryManager {
         addField(vv, logicalExpression, OutputColumnType.NEW, null);
     }
 
-    void addField(ValueVector vv, LogicalExpression logicalExpression, OutputColumnType outputColumnType, String path) {
+    void addField2(ValueVector vv, LogicalExpression logicalExpression, OutputColumnType outputColumnType, String path) {
       return;
     }
 
-    void addField2(ValueVector vv, LogicalExpression logicalExpression, OutputColumnType outputColumnType, String path) {
+    void addField(ValueVector vv, LogicalExpression logicalExpression, OutputColumnType outputColumnType, String path) {
         if(isFixedWidth(vv)) {
             addFixedWidthField(vv);
         } else {
