@@ -55,6 +55,7 @@ import org.apache.drill.exec.record.AbstractSingleRecordBatch;
 import org.apache.drill.exec.record.BatchSchema.SelectionVectorMode;
 import org.apache.drill.exec.record.MaterializedField;
 import org.apache.drill.exec.record.RecordBatch;
+import org.apache.drill.exec.record.RecordBatchSizer;
 import org.apache.drill.exec.record.SimpleRecordBatch;
 import org.apache.drill.exec.record.TransferPair;
 import org.apache.drill.exec.record.TypedFieldId;
@@ -213,6 +214,7 @@ public class ProjectRecordBatch extends AbstractSingleRecordBatch<Project> {
           logger.trace("doWork(): mem mngr count 1 " + memoryManager.getOutputRowCount()
                   + ", incoming rc " + incomingRecordCount + " incoming " + incoming
                   + ", project " + this);
+
         }
       }
     }
@@ -241,6 +243,7 @@ public class ProjectRecordBatch extends AbstractSingleRecordBatch<Project> {
 
     logger.trace("doWork: projection" + " records " + outputRecords + ", time " + (projectEndTime - projectStartTime) + " ms");
 
+
     if (outputRecords < incomingRecordCount) {
       setValueCount(outputRecords);
       hasRemainder = true;
@@ -259,6 +262,10 @@ public class ProjectRecordBatch extends AbstractSingleRecordBatch<Project> {
       container.buildSchema(SelectionVectorMode.NONE);
     }
 
+    memoryManager.updateOutgoingStats(outputRecords);
+    if (logger.isDebugEnabled()) {
+      logger.debug("BATCH_STATS, outgoing:\n {}", new RecordBatchSizer(this));
+    }
     // Get the final outcome based on hasRemainder since that will determine if all the incoming records were
     // consumed in current output batch or not
     return getFinalOutcome(hasRemainder);
@@ -281,6 +288,9 @@ public class ProjectRecordBatch extends AbstractSingleRecordBatch<Project> {
     long projectEndTime = System.currentTimeMillis();
 
     logger.trace("handleRemainder: projection" + "records " + projRecords + ", time " + (projectEndTime - projectStartTime) + " ms");
+
+
+
     if (projRecords < remainingRecordCount) {
       setValueCount(projRecords);
       this.recordCount = projRecords;
@@ -298,6 +308,11 @@ public class ProjectRecordBatch extends AbstractSingleRecordBatch<Project> {
     // We have to re-build the schema.
     if (complexWriters != null) {
       container.buildSchema(SelectionVectorMode.NONE);
+    }
+
+    memoryManager.updateOutgoingStats(projRecords);
+    if (logger.isDebugEnabled()) {
+      logger.debug("BATCH_STATS, outgoing:\n {}", new RecordBatchSizer(this));
     }
   }
 

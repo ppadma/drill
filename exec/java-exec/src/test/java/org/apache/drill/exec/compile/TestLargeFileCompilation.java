@@ -144,7 +144,7 @@ public class TestLargeFileCompilation extends BaseTestQuery {
     testNoResult("alter session set `%s`='JDK'", ClassCompilerSelector.JAVA_COMPILER_OPTION);
     testNoResult(ITERATION_COUNT, LARGE_QUERY_GROUP_BY);
   }
-  
+
   @Test
   public void testEXTERNAL_SORT() throws Exception {
     testNoResult("alter session set `%s`='JDK'", ClassCompilerSelector.JAVA_COMPILER_OPTION);

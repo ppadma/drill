@@ -80,8 +80,12 @@ public class TestOutputBatchSize extends PhysicalOpUnitTestBase {
 
 
   @Test
-  public void testProjectFixedWidth() throws Exception {
+  public void testProjectFixedWidthTransfer() throws Exception {
     testProjectFixedWidthImpl(true, 100);
+  }
+
+  @Test
+  public void testProjectFixedWidthNewColumn() throws Exception {
     testProjectFixedWidthImpl(false, 100);
   }
 
@@ -153,10 +157,15 @@ public class TestOutputBatchSize extends PhysicalOpUnitTestBase {
   }
 
   @Test
-  public void testProjectVariableWidth() throws Exception {
-    testProjectVariableWidthImpl(true, 2);
-    testProjectVariableWidthImpl(false, 2);
+  public void testProjectVariableWidthTransfer() throws Exception {
+    testProjectVariableWidthImpl(true, 50);
   }
+
+  @Test
+  public void testProjectVariableWidthNewColumn() throws Exception {
+    testProjectVariableWidthImpl(false, 50);
+  }
+
 
   public void testProjectVariableWidthImpl(boolean transfer, int columnCount) throws Exception {
     String testString = "ABCDEFGHIJ";
@@ -214,6 +223,8 @@ public class TestOutputBatchSize extends PhysicalOpUnitTestBase {
     }
     opTestBuilder.go();
   }
+
+
 
   @Test
   public void testFlattenFixedWidth() throws Exception {

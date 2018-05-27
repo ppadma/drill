@@ -74,7 +74,7 @@ public class ProjectMemoryManager extends RecordBatchMemoryManager {
     }
 
     class ColumnWidthInfo {
-        MaterializedField materializedField;
+        //MaterializedField materializedField;
         OutputWidthExpression outputExpression;
         int width;
         WidthType widthType;
@@ -86,12 +86,12 @@ public class ProjectMemoryManager extends RecordBatchMemoryManager {
                         OutputColumnType outputColumnType,
                         WidthType widthType,
                         int fieldWidth) {
-            this.materializedField = vv.getField();
+            //this.materializedField = vv.getField();
             this.outputExpression = outputWidthExpression;
             this.width = fieldWidth;
             this.outputColumnType = outputColumnType;
             this.widthType = widthType;
-            String columnName = materializedField.getName();
+            String columnName = vv.getField().getName();
             this.name = columnName;
         }
 
@@ -139,15 +139,7 @@ public class ProjectMemoryManager extends RecordBatchMemoryManager {
         return outgoingBatch.getValueAccessorById(clazz, fieldIds).getValueVector();
     }
 
-    public ValueVector getIncomingValueVector(TypedFieldId fieldId) {
-        Class<?> clazz = fieldId.getIntermediateClass();
-        int[] fieldIds = fieldId.getFieldIds();
-        return incomingBatch.getValueAccessorById(clazz, fieldIds).getValueVector();
-    }
-
-    static boolean isFixedWidth(ValueVector vv) {
-       return (vv instanceof FixedWidthVector);
-    }
+    static boolean isFixedWidth(ValueVector vv) {  return (vv instanceof FixedWidthVector); }
 
     static final int BIT_VECTOR_WIDTH = UInt1Vector.VALUE_WIDTH;
     static final int OFFSET_VECTOR_WIDTH = UInt4Vector.VALUE_WIDTH;
@@ -160,7 +152,7 @@ public class ProjectMemoryManager extends RecordBatchMemoryManager {
 
 
         if (isVariableWidth) {
-            throw new IllegalArgumentException("getWidthOfFixedWidthType() cannot handle variable width types");
+          throw new IllegalArgumentException("getWidthOfFixedWidthType() cannot handle variable width types");
         }
 
         final boolean isOptional = (mode == DataMode.OPTIONAL);
@@ -171,19 +163,16 @@ public class ProjectMemoryManager extends RecordBatchMemoryManager {
         if (isOptional) { stdDataSize += BIT_VECTOR_WIDTH; }
 
         if (minorType != MinorType.NULL) {
-            stdDataSize += TypeHelper.getSize(majorType);
+          stdDataSize += TypeHelper.getSize(majorType);
         }
 
-        if (isRepeated) { stdDataSize = (stdDataSize * STD_REPETITION_FACTOR) + OFFSET_VECTOR_WIDTH; }
+        if (isRepeated) {
+          stdDataSize = (stdDataSize * STD_REPETITION_FACTOR) + OFFSET_VECTOR_WIDTH;
+        }
 
         return stdDataSize;
     }
 
-    /**
-     * Valid only for fixed width vectors
-     * @param vv
-     * @return
-     */
     static int getWidthOfFixedWidthType(ValueVector vv) {
         assert isFixedWidth(vv);
         return vv.getPayloadByteCount(1);
@@ -294,15 +283,14 @@ public class ProjectMemoryManager extends RecordBatchMemoryManager {
           setOutputRowCount(getOutputBatchSize(), rowWidth);
           outPutRowCount = Math.min(getOutputRowCount(), batchSizer.rowCount());
         } else {
-            // KM_TBD Verify if we should just do 1 row
-            // at a time, in this case, instead of allowing the entire batch
-
             // if rowWidth == 0 then the memory manager does
             // not have sufficient information to size the batch
-            // let the entire batch pass through
-            //ShoulgNotReachHere(); // OK to be here. RB sizer will give 0 width if incoming rc == 0
+            // let the entire batch pass through.
+            // If incoming rc == 0, all RB Sizer lookups will have
+            // 0 width and so total width can be 0
             outPutRowCount = incomingBatch.getRecordCount();
         }
+        setOutputRowCount(outPutRowCount);
         long updateEndTime = System.currentTimeMillis();
         logger.trace("update() : Output RC " + outPutRowCount + ", BatchSizer RC " + batchSizer.rowCount()
                      + ", incoming RC " + incomingBatch.getRecordCount() + " width " + rowWidth
@@ -313,6 +301,8 @@ public class ProjectMemoryManager extends RecordBatchMemoryManager {
                      + ", update time " + (updateEndTime - updateStartTime)  + " ms"
                      + ", manager " + this
                      + ", incoming " + incomingBatch);
-        setOutputRowCount(outPutRowCount);
+
+        logger.debug("BATCH_STATS, incoming:\n {}", getRecordBatchSizer());
+        updateIncomingStats();
     }
 }

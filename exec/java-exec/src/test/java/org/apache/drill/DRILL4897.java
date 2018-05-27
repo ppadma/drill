@@ -67,7 +67,7 @@ public class DRILL4897 extends DrillTest {
 //                         " from cp.`employee.json` ";
 //            String sql = "SELECT UPPER(CONCAT(first_name, '##')) as upper_name " +
 //                    " from cp.`employee.json` ";
-            String sql = "select * from cp.`employee.json` order by last_name limit 2";
+            String sql = "select * from (select *, employee_id + 1 as eid1 from cp.`employee.json`) where eid1 = -1";
 
 //            String sql = "SELECT employee_id + position_id as eidpluspid " +
 //                            " from cp.`employee.json` ";
