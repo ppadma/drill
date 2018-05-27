@@ -162,9 +162,7 @@ public class ProjectRecordBatch extends AbstractSingleRecordBatch<Project> {
 
     int incomingRecordCount = incoming.getRecordCount();
     //calculate the output row count
-   logger.trace("doWork(): Exprs size " + ((Project)this.popConfig).getExprs().size()
-                + ", incoming rc " + incomingRecordCount + " incoming " + incoming
-                + ", project " + this);
+    logger.trace("doWork(): incoming rc " + incomingRecordCount + " incoming " + incoming + ", project " + this);
     memoryManager.update();
 
     if (first && incomingRecordCount == 0) {
