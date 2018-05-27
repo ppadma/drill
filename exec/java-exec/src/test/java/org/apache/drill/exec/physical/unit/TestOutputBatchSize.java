@@ -78,6 +78,29 @@ public class TestOutputBatchSize extends PhysicalOpUnitTestBase {
     return totalSize;
   }
 
+  @Test
+  public void testProjectMapTransfer() throws Exception {
+    String jsonRow = "{";
+
+  }
+
+  @Test
+  public void testProjectVariableWidthFunctions() throws  Exception {
+    //size calculators
+    //size estimators
+
+  }
+
+  @Test
+  public void testProjectZeroWidth() throws Exception {
+
+  }
+
+  @Test
+  public void testProjectComplexWriter() throws Exception {
+    // JSON to string
+  }
+
 
   @Test
   public void testProjectFixedWidthTransfer() throws Exception {
@@ -100,7 +123,7 @@ public class TestOutputBatchSize extends PhysicalOpUnitTestBase {
   public void testProjectFixedWidthImpl(boolean transfer, int columnCount) throws  Exception {
 
     //generate a row with N columns C0..C[columnCount], value in a colum is same as column id
-    String jsonRow = "{";
+    StringBuilder jsonRow = new StringBuilder("{");
     String[] baselineColumns = new String [columnCount];
     Object[] baselineValues = new Long[columnCount];
 
@@ -114,7 +137,7 @@ public class TestOutputBatchSize extends PhysicalOpUnitTestBase {
     }
 
     for (int i = 0; i < columnCount; i++) {
-      jsonRow +=  "\"" + "C" + i + "\": " + i + ((i == columnCount - 1) ? "" : ",");
+      jsonRow.append("\"" + "C" + i + "\": " + i + ((i == columnCount - 1) ? "" : ","));
       baselineColumns[i] = "C" + i;
       if (!transfer) {
         expr[i * 2] = baselineColumns[i] + " + 5";
@@ -122,17 +145,17 @@ public class TestOutputBatchSize extends PhysicalOpUnitTestBase {
       }
       baselineValues[i] = (long)(transfer ? i : i + 5);
     }
-    jsonRow += "}";
-    String batchString = "[";
+    jsonRow.append("}");
+    StringBuilder batchString = new StringBuilder("[");
     for (int i = 0; i < numRows; i++) {
-      batchString += jsonRow + ((i == numRows - 1) ? "" : ",");
+      batchString.append(jsonRow + ((i == numRows - 1) ? "" : ","));
     }
-    batchString += "]";
+    batchString.append("]");
     List<String> inputJsonBatches = Lists.newArrayList();
-    inputJsonBatches.add(batchString);
+    inputJsonBatches.add(batchString.toString());
 
     List<String> expectedJsonBatches = Lists.newArrayList();
-    expectedJsonBatches.add(batchString);
+    expectedJsonBatches.add(batchString.toString());
 
     Project projectConf = new Project(parseExprs(expr), null);
     mockOpContext(projectConf, initReservation, maxAllocation);
@@ -169,7 +192,7 @@ public class TestOutputBatchSize extends PhysicalOpUnitTestBase {
 
   public void testProjectVariableWidthImpl(boolean transfer, int columnCount) throws Exception {
     String testString = "ABCDEFGHIJ";
-    String jsonRow = "{";
+    StringBuilder jsonRow = new StringBuilder("{");
     String[] baselineColumns = new String [columnCount];
     Object[] baselineValues = new String[columnCount];
     int exprSize = (transfer ? 2 : 2 * columnCount);
@@ -182,7 +205,7 @@ public class TestOutputBatchSize extends PhysicalOpUnitTestBase {
     }
 
     for (int i = 0; i < columnCount; i++) {
-      jsonRow +=  "\"" + "C" + i + "\": " + "\"" + testString + "\"" + ((i == columnCount - 1) ? "" : ",");
+      jsonRow.append("\"" + "C" + i + "\": " + "\"" + testString + "\"" + ((i == columnCount - 1) ? "" : ","));
       baselineColumns[i] = "C" + i;
       if (!transfer) {
         expr[i * 2] = "lower(" + baselineColumns[i] + ")";
@@ -190,17 +213,17 @@ public class TestOutputBatchSize extends PhysicalOpUnitTestBase {
       }
       baselineValues[i] = (transfer ? testString : Strings.lowerCase(testString));
     }
-    jsonRow += "}";
-    String batchString = "[";
+    jsonRow.append("}");
+    StringBuilder batchString = new StringBuilder("[");
     for (int i = 0; i < numRows; i++) {
-      batchString += jsonRow + ((i == numRows - 1) ? "" : ",");
+      batchString.append(jsonRow + ((i == numRows - 1) ? "" : ","));
     }
-    batchString += "]";
+    batchString.append("]");
     List<String> inputJsonBatches = Lists.newArrayList();
-    inputJsonBatches.add(batchString);
+    inputJsonBatches.add(batchString.toString());
 
     List<String> expectedJsonBatches = Lists.newArrayList();
-    expectedJsonBatches.add(batchString);
+    expectedJsonBatches.add(batchString.toString());
 
     Project projectConf = new Project(parseExprs(expr), null);
     mockOpContext(projectConf, initReservation, maxAllocation);
