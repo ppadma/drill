@@ -31,7 +31,7 @@ public abstract class FunctionHolderExpression extends LogicalExpressionBase {
 
   /**
    * A field reference identifies the output field and
-   * is used to reference that fi`eld in the generated classes.
+   * is used to reference that field in the generated classes.
    */
   private FieldReference fieldReference;
 
