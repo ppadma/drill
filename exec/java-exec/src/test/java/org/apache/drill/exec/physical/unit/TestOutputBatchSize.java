@@ -79,8 +79,53 @@ public class TestOutputBatchSize extends PhysicalOpUnitTestBase {
   }
 
   @Test
-  public void testProjectMapTransfer() throws Exception {
-    String jsonRow = "{";
+  public void testProjectMap() throws Exception {
+    // create input rows like this.
+    // "a" : 5, "b" : wideString, "c" : [{"trans_id":"t1", amount:100, trans_time:7777777, type:sports},
+    //                                   {"trans_id":"t1", amount:100, trans_time:8888888, type:groceries}]
+    StringBuilder batchString = new StringBuilder("[");
+    for (int i = 0; i < numRows; i++) {
+      batchString.append("{\"a\": 5, " + "\"b\" : " + "\"" + wideString + "\"," +
+                         " \"c\" : { \"trans_id\":\"t1\", \"amount\":100, \"trans_time\":7777777, \"type\":\"sports\"}," +
+                         " \"d\": { \"trans_id\":\"t2\", \"amount\":1000, \"trans_time\":8888888, \"type\":\"groceries\"}");
+      batchString.append(i != numRows - 1 ? "}," : "}]");
+    }
+    List<String> inputJsonBatches = Lists.newArrayList();
+    inputJsonBatches.add(batchString.toString());
+
+    StringBuilder expectedString = new StringBuilder("[");
+    for (int i = 0; i < numRows; i++) {
+      expectedString.append("{\"aplusamount\": 105");
+      expectedString.append(i != numRows - 1 ? "}," : "}]");
+    }
+
+    List<String> expectedJsonBatches = Lists.newArrayList();
+    expectedJsonBatches.add(expectedString.toString());
+
+    String[] baselineColumns = new String[1];
+    baselineColumns[0] = "aplusamount";
+
+    String[] expr = {"a + c.amount ", baselineColumns[0]};
+
+    Project projectConf = new Project(parseExprs(expr), null);
+    mockOpContext(projectConf, initReservation, maxAllocation);
+
+    long totalSize = getExpectedSize(expectedJsonBatches);
+
+    fragContext.getOptions().setLocalOption("drill.exec.memory.operator.output_batch_size", totalSize / 2);
+
+    OperatorTestBuilder opTestBuilder = opTestBuilder()
+            .physicalOperator(projectConf)
+            .inputDataStreamJson(inputJsonBatches)
+            .baselineColumns(baselineColumns)
+            .expectedNumBatches(2)  // verify number of batches
+            .expectedBatchSize(totalSize / 2); // verify batch size.
+
+    Long[] baseLineValues = {(5l + 100l)}; // a + c.amount
+    for (int i = 0; i < numRows; i++) {
+      opTestBuilder.baselineValues(baseLineValues);
+    }
+    opTestBuilder.go();
 
   }
 
@@ -122,7 +167,7 @@ public class TestOutputBatchSize extends PhysicalOpUnitTestBase {
 
   public void testProjectFixedWidthImpl(boolean transfer, int columnCount) throws  Exception {
 
-    //generate a row with N columns C0..C[columnCount], value in a colum is same as column id
+    //generate a row with N columns C0..C[columnCount], value in a column is same as column id
     StringBuilder jsonRow = new StringBuilder("{");
     String[] baselineColumns = new String [columnCount];
     Object[] baselineValues = new Long[columnCount];
@@ -159,7 +204,6 @@ public class TestOutputBatchSize extends PhysicalOpUnitTestBase {
 
     Project projectConf = new Project(parseExprs(expr), null);
     mockOpContext(projectConf, initReservation, maxAllocation);
-
 
     long totalSize = getExpectedSize(expectedJsonBatches);
 
