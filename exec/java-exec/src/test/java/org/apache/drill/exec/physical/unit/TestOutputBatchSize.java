@@ -85,7 +85,7 @@ public class TestOutputBatchSize extends PhysicalOpUnitTestBase {
     //                                   {"trans_id":"t1", amount:100, trans_time:8888888, type:groceries}]
     StringBuilder batchString = new StringBuilder("[");
     for (int i = 0; i < numRows; i++) {
-      batchString.append("{\"a\": 5, " + "\"b\" : " + "\"" + wideString + "\"," +
+      batchString.append("{\"a\": 5, " + "\"b\" : " + "\"" + "abc" + "\"," +
                          " \"c\" : { \"trans_id\":\"t1\", \"amount\":100, \"trans_time\":7777777, \"type\":\"sports\"}," +
                          " \"d\": { \"trans_id\":\"t2\", \"amount\":1000, \"trans_time\":8888888, \"type\":\"groceries\"}");
       batchString.append(i != numRows - 1 ? "}," : "}]");
@@ -121,19 +121,69 @@ public class TestOutputBatchSize extends PhysicalOpUnitTestBase {
             .expectedNumBatches(2)  // verify number of batches
             .expectedBatchSize(totalSize / 2); // verify batch size.
 
-    Long[] baseLineValues = {(5l + 100l)}; // a + c.amount
+    Long[] baseLineValues = {(5l + 105l)}; // a + c.amount
     for (int i = 0; i < numRows; i++) {
       opTestBuilder.baselineValues(baseLineValues);
     }
     opTestBuilder.go();
-
   }
 
   @Test
   public void testProjectVariableWidthFunctions() throws  Exception {
     //size calculators
-    //size estimators
+    StringBuilder batchString = new StringBuilder("[");
+    String strValue = "abcde";
+    for (int i = 0; i < numRows; i++) {
+      batchString.append("{\"a\" : " + "\"" + strValue + "\"");
+      batchString.append(i != numRows - 1 ? "}," : "}]");
+    }
+    List<String> inputJsonBatches = Lists.newArrayList();
+    inputJsonBatches.add(batchString.toString());
+    long inputSize = getExpectedSize(inputJsonBatches);
 
+    String [][] ops = {{"concat", strValue + strValue, "concat(a,a)", inputSize + "", 2 + ""}, // o/p size will be 2 x i/p size
+                       {"upper", strValue.toUpperCase(),"upper(a)", inputSize + "", 1 + ""}// o/p size will same as i/p size
+                      };
+
+    for (String[] op : ops) {
+      String outputColumnName = op[0] + "_result";
+      String operationResult = op[1];
+      String exprStr = op[2];
+      long memoryLimit = Long.valueOf(op[3]);
+      int expectedNumBatches = Integer.valueOf(op[4]);
+
+      StringBuilder expectedString = new StringBuilder("[");
+      for (int i = 0; i < numRows; i++) {
+        expectedString.append("{\"" + outputColumnName + "\":" + operationResult);
+        expectedString.append(i != numRows - 1 ? "}," : "}]");
+      }
+
+      List<String> expectedJsonBatches = Lists.newArrayList();
+      expectedJsonBatches.add(expectedString.toString());
+
+      String[] baselineColumns = new String[1];
+      baselineColumns[0] = outputColumnName;
+
+      String[] expr = {exprStr, baselineColumns[0]};
+
+      Project projectConf = new Project(parseExprs(expr), null);
+      mockOpContext(projectConf, initReservation, maxAllocation);
+
+      fragContext.getOptions().setLocalOption("drill.exec.memory.operator.output_batch_size", memoryLimit);
+
+      OperatorTestBuilder opTestBuilder = opTestBuilder()
+              .physicalOperator(projectConf)
+              .inputDataStreamJson(inputJsonBatches)
+              .baselineColumns(baselineColumns)
+              .expectedNumBatches(expectedNumBatches)  // verify number of batches
+              .expectedBatchSize(inputSize); // verify batch size.
+
+      String[] baseLineValues = {operationResult}; //operation(a, a)
+      for (int i = 0; i < numRows; i++) {
+        opTestBuilder.baselineValues(baseLineValues);
+      }
+      opTestBuilder.go();
+    }
   }
 
   @Test
