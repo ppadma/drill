@@ -228,9 +228,9 @@ public class ProjectRecordBatch extends AbstractSingleRecordBatch<Project> {
 
 
     int maxOuputRecordCount = memoryManager.getOutputRowCount();
-      logger.trace("doWork(): mem mngr count 2 " + memoryManager.getOutputRowCount()
-              + ", incoming rc " + incomingRecordCount + " incoming " + incoming
-              + ", project " + this);
+    logger.trace("doWork(): mem mngr count 2 " + memoryManager.getOutputRowCount()
+                 + ", incoming rc " + incomingRecordCount + " incoming " + incoming
+                 + ", project " + this);
     if (!doAlloc(maxOuputRecordCount)) {
       outOfMemory = true;
       return IterOutcome.OUT_OF_MEMORY;
@@ -262,7 +262,7 @@ public class ProjectRecordBatch extends AbstractSingleRecordBatch<Project> {
 
     memoryManager.updateOutgoingStats(outputRecords);
     if (logger.isDebugEnabled()) {
-      logger.debug("BATCH_STATS, outgoing:\n {}", new RecordBatchSizer(this));
+      logger.debug("BATCH_STATS, outgoing: {}", new RecordBatchSizer(this));
     }
     // Get the final outcome based on hasRemainder since that will determine if all the incoming records were
     // consumed in current output batch or not
@@ -287,8 +287,6 @@ public class ProjectRecordBatch extends AbstractSingleRecordBatch<Project> {
 
     logger.trace("handleRemainder: projection" + "records " + projRecords + ", time " + (projectEndTime - projectStartTime) + " ms");
 
-
-
     if (projRecords < remainingRecordCount) {
       setValueCount(projRecords);
       this.recordCount = projRecords;
@@ -310,7 +308,7 @@ public class ProjectRecordBatch extends AbstractSingleRecordBatch<Project> {
 
     memoryManager.updateOutgoingStats(projRecords);
     if (logger.isDebugEnabled()) {
-      logger.debug("BATCH_STATS, outgoing:\n {}", new RecordBatchSizer(this));
+      logger.debug("BATCH_STATS, outgoing: {}", new RecordBatchSizer(this));
     }
   }
 

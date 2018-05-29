@@ -53,6 +53,17 @@ public class OutputWidthVisitor extends AbstractExecExprVisitor<OutputWidthExpre
         return new FixedLenExpr(varDecimalExpression.getMajorType().getPrecision());
     }
 
+
+    /**
+     *
+     * Records the {@link IfExpression} as a {@link IfElseWidthExpr}. IfElseWidthExpr will be reduced to
+     * a {@link FixedLenExpr} by taking the max of the if-expr-width and the else-expr-width.
+     *
+     * @param ifExpression
+     * @param state
+     * @return IfElseWidthExpr
+     * @throws RuntimeException
+     */
     @Override
     public OutputWidthExpression visitIfExpression(IfExpression ifExpression, OutputWidthVisitorState state)
                                                                     throws RuntimeException {
@@ -68,12 +79,23 @@ public class OutputWidthVisitor extends AbstractExecExprVisitor<OutputWidthExpre
         return new IfElseWidthExpr(ifWidthExpr, elseWidthExpr);
     }
 
+    /**
+     * Handles a {@link FunctionHolderExpression}. Functions that produce fixed-width output are trivially
+     * converted to a {@link FixedLenExpr}. For functions that produce variable width output, the output width calculator
+     * annotation is looked-up and recorded in a {@link FunctionCallExpr}. This calculator will later be used to convert
+     * the FunctionCallExpr to a {@link FixedLenExpr} expression
+     * @param holderExpr
+     * @param state
+     * @return FunctionCallExpr
+     * @throws RuntimeException
+     */
     @Override
     public OutputWidthExpression visitFunctionHolderExpression(FunctionHolderExpression holderExpr,
                                                                OutputWidthVisitorState state) throws RuntimeException {
         OutputWidthExpression fixedWidth = getFixedLenExpr(holderExpr.getMajorType());
         if (fixedWidth != null) { return fixedWidth; }
-        //KM_TBD Handling for HiveFunctionHolder
+        // Only Drill functions can be handled. Non-drill Functions, like HiveFunctions
+        // will default to a fixed value
         if (!(holderExpr instanceof DrillFuncHolderExpr)) {
             // We currently only know how to handle DrillFuncs
             // use a default if this is not a DrillFunc
@@ -81,13 +103,14 @@ public class OutputWidthVisitor extends AbstractExecExprVisitor<OutputWidthExpre
         }
 
         final DrillFuncHolder holder = ((DrillFuncHolderExpr) holderExpr).getHolder();
-        //KM_TBD: move constant val to a fun in template
-        // Use the user-provided estimate
+
+        // If the user has provided a size estimate, use it
         int estimate = holder.variableOuputSizeEstimate();
         if (estimate != FunctionTemplate.VARIABLE_OUTPUT_SIZE_ESTIMATE_DEFAULT) {
             return new FixedLenExpr(estimate);
         }
-        OutputWidthCalculator estimator = holder.getOutputWidthCalculator();
+        // Otherwise, use the calculator provided by the user or the default
+        OutputWidthCalculator widthCalculator = holder.getOutputWidthCalculator();
         final int argSize = holderExpr.args.size();
         ArrayList<OutputWidthExpression> arguments = null;
         if (argSize != 0) {
@@ -96,9 +119,17 @@ public class OutputWidthVisitor extends AbstractExecExprVisitor<OutputWidthExpre
                 arguments.add(expr.accept(this, state));
             }
         }
-        return new FunctionCallExpr(holderExpr, estimator, arguments);
+        return new FunctionCallExpr(holderExpr, widthCalculator, arguments);
     }
 
+    /**
+     * Records a variable width write expression. This will be converted to a {@link FixedLenExpr} expression by walking
+     * the tree of expression attached to the write expression .
+     * @param writeExpr
+     * @param state
+     * @return
+     * @throws RuntimeException
+     */
     @Override
     public OutputWidthExpression visitValueVectorWriteExpression(ValueVectorWriteExpression writeExpr,
                                                                  OutputWidthVisitorState state) throws RuntimeException {
@@ -114,6 +145,15 @@ public class OutputWidthVisitor extends AbstractExecExprVisitor<OutputWidthExpre
         return outputExpr;
     }
 
+    /**
+     * Records a variable width read expression as a {@link VarLenReadExpr}. This will be converted to a
+     * {@link FixedLenExpr} expression by getting the size for the corresponding column from the {@link RecordBatchSizer}.
+     *
+     * @param readExpr
+     * @param state
+     * @return
+     * @throws RuntimeException
+     */
     @Override
     public OutputWidthExpression visitValueVectorReadExpression(ValueVectorReadExpression readExpr,
                                                                 OutputWidthVisitorState state) throws RuntimeException {
@@ -142,7 +182,7 @@ public class OutputWidthVisitor extends AbstractExecExprVisitor<OutputWidthExpre
         if (nullConstant.getMajorType().hasPrecision()) {
             width = nullConstant.getMajorType().getPrecision();
         } else {
-            width = 0; //KM_TBD: What should the width of var length null ?
+            width = 0;
         }
         return new FixedLenExpr(width);
     }
@@ -154,13 +194,20 @@ public class OutputWidthVisitor extends AbstractExecExprVisitor<OutputWidthExpre
         return fixedLenExpr;
     }
 
+    /**
+     * Converts the {@link VarLenReadExpr} to a {@link FixedLenExpr} by getting the size for the corresponding column
+     * from the RecordBatchSizer.
+     * @param varLenReadExpr
+     * @param state
+     * @return
+     * @throws RuntimeException
+     */
     @Override
     public OutputWidthExpression visitVarLenReadExpr(VarLenReadExpr varLenReadExpr, OutputWidthVisitorState state)
                                                         throws RuntimeException {
         String columnName = varLenReadExpr.getName();
         if (columnName == null) {
             TypedFieldId fieldId = varLenReadExpr.getReadExpression().getTypedFieldId();
-            //ValueVector vv = state.manager.getIncomingValueVector(fieldId);
             columnName =  TypedFieldId.getPath(fieldId, state.manager.getIncomingBatch());
         }
         final RecordBatchSizer.ColumnSize columnSize = state.manager.getComplexColumnSize(columnName);
@@ -169,6 +216,14 @@ public class OutputWidthVisitor extends AbstractExecExprVisitor<OutputWidthExpre
         return new FixedLenExpr(columnWidth);
     }
 
+    /**
+     * Converts a {@link FunctionCallExpr} to a {@link FixedLenExpr} by passing the the args of the function to the
+     * width calculator for this function.
+     * @param functionCallExpr
+     * @param state
+     * @return
+     * @throws RuntimeException
+     */
     @Override
     public OutputWidthExpression visitFunctionCallExpr(FunctionCallExpr functionCallExpr, OutputWidthVisitorState state)
                                                         throws RuntimeException {
@@ -178,15 +233,24 @@ public class OutputWidthVisitor extends AbstractExecExprVisitor<OutputWidthExpre
         if (args != null && args.size() != 0) {
             estimatedArgs = new ArrayList<>(args.size());
             for (OutputWidthExpression expr : args) {
+                // Once the args are visited, they will all become FixedWidthExpr
                 FixedLenExpr fixedLenExpr = (FixedLenExpr) expr.accept(this, state);
                 estimatedArgs.add(fixedLenExpr);
             }
         }
-        OutputWidthCalculator estimator = functionCallExpr.getEstimator();
+        OutputWidthCalculator estimator = functionCallExpr.getCalculator();
         int estimatedSize = estimator.getOutputWidth(estimatedArgs);
         return new FixedLenExpr(estimatedSize);
     }
 
+    /**
+     *  Converts the {@link IfElseWidthExpr}  to a {@link FixedLenExpr} by taking the max of the if-expr-width and the
+     *  else-expr-width.
+     * @param ifElseWidthExpr
+     * @param state
+     * @return
+     * @throws RuntimeException
+     */
     @Override
     public OutputWidthExpression visitIfElseWidthExpr(IfElseWidthExpr ifElseWidthExpr, OutputWidthVisitorState state)
                                                         throws RuntimeException {

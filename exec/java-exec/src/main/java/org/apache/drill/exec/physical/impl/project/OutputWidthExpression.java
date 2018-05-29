@@ -46,17 +46,16 @@ public abstract class OutputWidthExpression {
 
     }
 
-
     public static class FunctionCallExpr extends OutputWidthExpression {
         FunctionHolderExpression holder;
         ArrayList<OutputWidthExpression> args;
-        OutputWidthCalculator estimator;
+        OutputWidthCalculator widthCalculator;
 
-        public FunctionCallExpr(FunctionHolderExpression holder, OutputWidthCalculator estimator,
+        public FunctionCallExpr(FunctionHolderExpression holder, OutputWidthCalculator widthCalculator,
                                 ArrayList<OutputWidthExpression> args) {
             this.holder = holder;
             this.args = args;
-            this.estimator = estimator;
+            this.widthCalculator = widthCalculator;
         }
 
         public FunctionHolderExpression getHolder() {
@@ -67,8 +66,8 @@ public abstract class OutputWidthExpression {
             return args;
         }
 
-        public OutputWidthCalculator getEstimator() {
-            return estimator;
+        public OutputWidthCalculator getCalculator() {
+            return widthCalculator;
         }
 
         @Override

@@ -196,6 +196,10 @@ public class TestOutputBatchSize extends PhysicalOpUnitTestBase {
     // JSON to string
   }
 
+  @Test
+  public void testIfElseExpr() throws Exception {
+
+  }
 
   @Test
   public void testProjectFixedWidthTransfer() throws Exception {
@@ -207,13 +211,13 @@ public class TestOutputBatchSize extends PhysicalOpUnitTestBase {
     testProjectFixedWidthImpl(false, 100);
   }
 
-    /**
-     * Tests BatchSizing of fixed-width transfers and new column creations in Project.
-     * Transfer: Evaluates 'select *'
-     * New Columns: Evalutes 'select C0 + 5 as C0 ... C[columnCount] + 5 as C[columnCount]
-     * @param transfer
-     * @throws Exception
-     */
+   /**
+    * Tests BatchSizing of fixed-width transfers and new column creations in Project.
+    * Transfer: Evaluates 'select *'
+    * New Columns: Evalutes 'select C0 + 5 as C0 ... C[columnCount] + 5 as C[columnCount]
+    * @param transfer
+    * @throws Exception
+    */
 
   public void testProjectFixedWidthImpl(boolean transfer, int columnCount) throws  Exception {
 

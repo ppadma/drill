@@ -38,6 +38,22 @@ import java.util.Map;
 
 import static org.apache.drill.exec.vector.AllocationHelper.STD_REPETITION_FACTOR;
 
+/**
+ *
+ * ProjectMemoryManager(PMM) is used to estimate the size of rows produced by ProjectRecordBatch.
+ * The PMM works as follows:
+ *
+ * Setup phase: As and when ProjectRecordBatch creates or transfers a field, it registers the field with PMM.
+ * If the field is a variable width field, PMM records the expression that produces the variable
+ * width field. The expression is a tree of LogicalExpressions. The PMM walks this tree of LogicalExpressions
+ * to produce a tree of OutputWidthExpressions. The widths of Fixed width fields are just accumulated into a single
+ * total. Note: The PMM, currently, cannot handle new complex fields, it just uses a hard-coded estimate for such fields.
+ *
+ *
+ * Execution phase: Just before a batch is processed by Project, the PMM walks the tree of OutputWidthExpressions
+ * and conversts them to FixedWidthExpressions. It uses the RecordBatchSizer and the function annotations to do this conversion.
+ * See OutputWidthVisitor for details.
+ */
 public class ProjectMemoryManager extends RecordBatchMemoryManager {
 
     static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(ProjectMemoryManager.class);
@@ -51,8 +67,11 @@ public class ProjectMemoryManager extends RecordBatchMemoryManager {
 
     int rowWidth = 0;
     Map<String, ColumnWidthInfo> outputColumnSizes;
+    // Number of variable width columns in the batch
     int variableWidthColumnCount = 0;
+    // Number of fixed width columns in the batch
     int fixedWidthColumnCount = 0;
+    // Number of complex columns in the batch
     int complexColumnsCount = 0;
 
 
@@ -85,7 +104,6 @@ public class ProjectMemoryManager extends RecordBatchMemoryManager {
                         OutputColumnType outputColumnType,
                         WidthType widthType,
                         int fieldWidth) {
-            //this.materializedField = vv.getField();
             this.outputExpression = outputWidthExpression;
             this.width = fieldWidth;
             this.outputColumnType = outputColumnType;
@@ -178,15 +196,11 @@ public class ProjectMemoryManager extends RecordBatchMemoryManager {
     }
 
     void addTransferField(ValueVector vvOut, String path) {
-        addField(vvOut, null, OutputColumnType.TRANSFER, path);
+      addField(vvOut, null, OutputColumnType.TRANSFER, path);
     }
 
     void addNewField(ValueVector vv, LogicalExpression logicalExpression) {
-        addField(vv, logicalExpression, OutputColumnType.NEW, null);
-    }
-
-    void addField2(ValueVector vv, LogicalExpression logicalExpression, OutputColumnType outputColumnType, String path) {
-      return;
+      addField(vv, logicalExpression, OutputColumnType.NEW, null);
     }
 
     void addField(ValueVector vv, LogicalExpression logicalExpression, OutputColumnType outputColumnType, String path) {
@@ -209,7 +223,7 @@ public class ProjectMemoryManager extends RecordBatchMemoryManager {
                 OutputWidthVisitorState state = new OutputWidthVisitorState(this, outputColumnType);
                 OutputWidthExpression outputWidthExpression = logicalExpression.accept(new OutputWidthVisitor(), state);
                 columnWidthInfo = new ColumnWidthInfo(vv, outputWidthExpression, outputColumnType,
-                        WidthType.VARIABLE, -1); //fieldWidth has to be obtained from the outputWidthExpression
+                        WidthType.VARIABLE, -1); //fieldWidth has to be obtained from the OutputWidthExpression
             }
             outputColumnSizes.put(columnWidthInfo.getName(), columnWidthInfo);
         }
@@ -301,7 +315,7 @@ public class ProjectMemoryManager extends RecordBatchMemoryManager {
                      + ", manager " + this
                      + ", incoming " + incomingBatch);
 
-        logger.debug("BATCH_STATS, incoming:\n {}", getRecordBatchSizer());
+        logger.debug("BATCH_STATS, incoming: {}", getRecordBatchSizer());
         updateIncomingStats();
     }
 }
