@@ -59,10 +59,10 @@
     <appender-ref ref="STDOUT"/>
   </root>
 
-  <!--logger name="org.apache.drill.exec.physical.impl.project" additivity="false">
-    <level value="debug" />
+  <logger name="org.apache.drill.exec.physical.impl.project" additivity="false">
+    <level value="trace" />
     <appender-ref ref="STDOUT" />
-  </logger-->
+  </logger>
 
   <!--logger name="org.apache.drill" additivity="false">
     <level value="debug" />

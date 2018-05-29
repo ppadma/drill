@@ -161,8 +161,11 @@ public class ProjectRecordBatch extends AbstractSingleRecordBatch<Project> {
     }
 
     int incomingRecordCount = incoming.getRecordCount();
+
+    if (logger.isTraceEnabled()) {
+      logger.trace("doWork(): incoming rc " + incomingRecordCount + " incoming " + incoming + ", project " + this);
+    }
     //calculate the output row count
-    logger.trace("doWork(): incoming rc " + incomingRecordCount + " incoming " + incoming + ", project " + this);
     memoryManager.update();
 
     if (first && incomingRecordCount == 0) {
@@ -209,9 +212,11 @@ public class ProjectRecordBatch extends AbstractSingleRecordBatch<Project> {
           }
           incomingRecordCount = incoming.getRecordCount();
           memoryManager.update();
-          logger.trace("doWork(): mem mngr count 1 " + memoryManager.getOutputRowCount()
-                  + ", incoming rc " + incomingRecordCount + " incoming " + incoming
-                  + ", project " + this);
+          if (logger.isTraceEnabled()) {
+            logger.trace("doWork(): mem mngr count 1 " + memoryManager.getOutputRowCount()
+                    + ", incoming rc " + incomingRecordCount + " incoming " + incoming
+                    + ", project " + this);
+          }
 
         }
       }
@@ -228,9 +233,11 @@ public class ProjectRecordBatch extends AbstractSingleRecordBatch<Project> {
 
 
     int maxOuputRecordCount = memoryManager.getOutputRowCount();
-    logger.trace("doWork(): mem mngr count 2 " + memoryManager.getOutputRowCount()
-                 + ", incoming rc " + incomingRecordCount + " incoming " + incoming
-                 + ", project " + this);
+    if (logger.isTraceEnabled()) {
+      logger.trace("doWork(): mem mngr count 2 " + memoryManager.getOutputRowCount()
+              + ", incoming rc " + incomingRecordCount + " incoming " + incoming
+              + ", project " + this);
+    }
     if (!doAlloc(maxOuputRecordCount)) {
       outOfMemory = true;
       return IterOutcome.OUT_OF_MEMORY;
@@ -238,9 +245,9 @@ public class ProjectRecordBatch extends AbstractSingleRecordBatch<Project> {
     long projectStartTime = System.currentTimeMillis();
     final int outputRecords = projector.projectRecords(this.incoming,0, maxOuputRecordCount, 0);
     long projectEndTime = System.currentTimeMillis();
-
-    logger.trace("doWork: projection" + " records " + outputRecords + ", time " + (projectEndTime - projectStartTime) + " ms");
-
+    if (logger.isTraceEnabled()) {
+      logger.trace("doWork: projection" + " records " + outputRecords + ", time " + (projectEndTime - projectStartTime) + " ms");
+    }
 
     if (outputRecords < incomingRecordCount) {
       setValueCount(outputRecords);
@@ -278,14 +285,18 @@ public class ProjectRecordBatch extends AbstractSingleRecordBatch<Project> {
       outOfMemory = true;
       return;
     }
-    logger.trace("handleRemainder: remaining rc " + remainingRecordCount + " toProcess " + recordsToProcess
-                 + " remainder index " + remainderIndex + " incoming " + incoming + " project " + this);
+    if (logger.isTraceEnabled()) {
+      logger.trace("handleRemainder: remaining rc " + remainingRecordCount + " toProcess " + recordsToProcess
+              + " remainder index " + remainderIndex + " incoming " + incoming + " project " + this);
+    }
 
     long projectStartTime = System.currentTimeMillis();
     final int projRecords = projector.projectRecords(this.incoming, remainderIndex, recordsToProcess, 0);
     long projectEndTime = System.currentTimeMillis();
 
-    logger.trace("handleRemainder: projection" + "records " + projRecords + ", time " + (projectEndTime - projectStartTime) + " ms");
+    if (logger.isTraceEnabled()) {
+      logger.trace("handleRemainder: projection" + "records " + projRecords + ", time " + (projectEndTime - projectStartTime) + " ms");
+    }
 
     if (projRecords < remainingRecordCount) {
       setValueCount(projRecords);
@@ -579,7 +590,9 @@ public class ProjectRecordBatch extends AbstractSingleRecordBatch<Project> {
     }
 
     long setupNewSchemaEndTime = System.currentTimeMillis();
-    logger.trace("setupNewSchemaFromInput: time " + (setupNewSchemaEndTime - setupNewSchemaStartTime) + " ms" + ", proj " + this + " incoming " + incomingBatch );
+    if (logger.isTraceEnabled()) {
+      logger.trace("setupNewSchemaFromInput: time " + (setupNewSchemaEndTime - setupNewSchemaStartTime) + " ms" + ", proj " + this + " incoming " + incomingBatch);
+    }
   }
 
   @Override

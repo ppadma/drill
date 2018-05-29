@@ -121,7 +121,7 @@ public class TestOutputBatchSize extends PhysicalOpUnitTestBase {
             .expectedNumBatches(2)  // verify number of batches
             .expectedBatchSize(totalSize / 2); // verify batch size.
 
-    Long[] baseLineValues = {(5l + 105l)}; // a + c.amount
+    Long[] baseLineValues = {(5l + 100l)}; // a + c.amount
     for (int i = 0; i < numRows; i++) {
       opTestBuilder.baselineValues(baseLineValues);
     }
@@ -141,7 +141,7 @@ public class TestOutputBatchSize extends PhysicalOpUnitTestBase {
     inputJsonBatches.add(batchString.toString());
     long inputSize = getExpectedSize(inputJsonBatches);
 
-    String [][] ops = {{"concat", strValue + strValue, "concat(a,a)", inputSize + "", 2 + ""}, // o/p size will be 2 x i/p size
+    String [][] ops = {{"concat", strValue + strValue, "concat(a,a)", inputSize + "", 2 + ""},// o/p size will be 2 x i/p size
                        {"upper", strValue.toUpperCase(),"upper(a)", inputSize + "", 1 + ""}// o/p size will same as i/p size
                       };
 
@@ -176,7 +176,7 @@ public class TestOutputBatchSize extends PhysicalOpUnitTestBase {
               .inputDataStreamJson(inputJsonBatches)
               .baselineColumns(baselineColumns)
               .expectedNumBatches(expectedNumBatches)  // verify number of batches
-              .expectedBatchSize(inputSize); // verify batch size.
+              .expectedBatchSize(memoryLimit); // verify batch size.
 
       String[] baseLineValues = {operationResult}; //operation(a, a)
       for (int i = 0; i < numRows; i++) {

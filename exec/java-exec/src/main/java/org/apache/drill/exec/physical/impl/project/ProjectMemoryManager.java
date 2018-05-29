@@ -165,11 +165,11 @@ public class ProjectMemoryManager extends RecordBatchMemoryManager {
         DataMode mode = majorType.getMode();
         MinorType minorType = majorType.getMinorType();
         final boolean isVariableWidth  = (minorType == MinorType.VARCHAR || minorType == MinorType.VAR16CHAR
-                                                                    || minorType == MinorType.VARBINARY);
+                || minorType == MinorType.VARBINARY);
 
 
         if (isVariableWidth) {
-          throw new IllegalArgumentException("getWidthOfFixedWidthType() cannot handle variable width types");
+            throw new IllegalArgumentException("getWidthOfFixedWidthType() cannot handle variable width types");
         }
 
         final boolean isOptional = (mode == DataMode.OPTIONAL);
@@ -180,11 +180,11 @@ public class ProjectMemoryManager extends RecordBatchMemoryManager {
         if (isOptional) { stdDataSize += BIT_VECTOR_WIDTH; }
 
         if (minorType != MinorType.NULL) {
-          stdDataSize += TypeHelper.getSize(majorType);
+            stdDataSize += TypeHelper.getSize(majorType);
         }
 
         if (isRepeated) {
-          stdDataSize = (stdDataSize * STD_REPETITION_FACTOR) + OFFSET_VECTOR_WIDTH;
+            stdDataSize = (stdDataSize * STD_REPETITION_FACTOR) + OFFSET_VECTOR_WIDTH;
         }
 
         return stdDataSize;
@@ -196,11 +196,11 @@ public class ProjectMemoryManager extends RecordBatchMemoryManager {
     }
 
     void addTransferField(ValueVector vvOut, String path) {
-      addField(vvOut, null, OutputColumnType.TRANSFER, path);
+        addField(vvOut, null, OutputColumnType.TRANSFER, path);
     }
 
     void addNewField(ValueVector vv, LogicalExpression logicalExpression) {
-      addField(vv, logicalExpression, OutputColumnType.NEW, null);
+        addField(vv, logicalExpression, OutputColumnType.NEW, null);
     }
 
     void addField(ValueVector vv, LogicalExpression logicalExpression, OutputColumnType outputColumnType, String path) {
@@ -293,8 +293,8 @@ public class ProjectMemoryManager extends RecordBatchMemoryManager {
         rowWidth += totalVariableColumnWidth;
         int outPutRowCount;
         if (rowWidth != 0) {
-          setOutputRowCount(getOutputBatchSize(), rowWidth);
-          outPutRowCount = Math.min(getOutputRowCount(), batchSizer.rowCount());
+            setOutputRowCount(getOutputBatchSize(), rowWidth);
+            outPutRowCount = Math.min(getOutputRowCount(), batchSizer.rowCount());
         } else {
             // if rowWidth == 0 then the memory manager does
             // not have sufficient information to size the batch
@@ -305,15 +305,17 @@ public class ProjectMemoryManager extends RecordBatchMemoryManager {
         }
         setOutputRowCount(outPutRowCount);
         long updateEndTime = System.currentTimeMillis();
-        logger.trace("update() : Output RC " + outPutRowCount + ", BatchSizer RC " + batchSizer.rowCount()
-                     + ", incoming RC " + incomingBatch.getRecordCount() + " width " + rowWidth
-                     + ", total fixed width " + totalFixedWidthColumnWidth
-                     + ", total variable width " + totalVariableColumnWidth
-                     + ", total complex width " + totalComplexColumnWidth
-                     + ", batchSizer time " + (batchSizerEndTime - updateStartTime)  + " ms"
-                     + ", update time " + (updateEndTime - updateStartTime)  + " ms"
-                     + ", manager " + this
-                     + ", incoming " + incomingBatch);
+        if (logger.isTraceEnabled()) {
+            logger.trace("update() : Output RC " + outPutRowCount + ", BatchSizer RC " + batchSizer.rowCount()
+                    + ", incoming RC " + incomingBatch.getRecordCount() + " width " + rowWidth
+                    + ", total fixed width " + totalFixedWidthColumnWidth
+                    + ", total variable width " + totalVariableColumnWidth
+                    + ", total complex width " + totalComplexColumnWidth
+                    + ", batchSizer time " + (batchSizerEndTime - updateStartTime) + " ms"
+                    + ", update time " + (updateEndTime - updateStartTime) + " ms"
+                    + ", manager " + this
+                    + ", incoming " + incomingBatch);
+        }
 
         logger.debug("BATCH_STATS, incoming: {}", getRecordBatchSizer());
         updateIncomingStats();
