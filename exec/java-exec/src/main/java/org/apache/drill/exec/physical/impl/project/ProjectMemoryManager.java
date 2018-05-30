@@ -138,6 +138,9 @@ public class ProjectMemoryManager extends RecordBatchMemoryManager {
     public ProjectMemoryManager(int configuredOutputSize) {
         super(configuredOutputSize);
         outputColumnSizes = new HashMap<>();
+        if (logger.isDebugEnabled()) {
+          logger.debug("BATCH_STATS, configuredOutputSize: {}", configuredOutputSize);
+        }
     }
 
     public boolean isComplex(MajorType majorType) {
