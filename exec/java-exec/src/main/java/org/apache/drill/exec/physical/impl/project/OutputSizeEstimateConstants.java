@@ -19,7 +19,7 @@ package org.apache.drill.exec.physical.impl.project;
 
 public class OutputSizeEstimateConstants {
     public static final int USER_NAME_LENGTH = 32; //libc useradd limit
-    public static final int SCHEMA_LENGTH = 512;   //KM_TBD - is this a good guess?
+    public static final int SCHEMA_LENGTH = 1024;
     public static final int USER_ID_LENGTH = 32;   //UUID length
     public static final int DATE_TIME_LENGTH = 100; //DateTypeFunctions timeofday truncates to 100
     public static final int CONVERT_TO_FLOAT_LENGTH = 4; //float 4 to varbinary

@@ -140,9 +140,26 @@ public class TestOutputBatchSize extends PhysicalOpUnitTestBase {
     List<String> inputJsonBatches = Lists.newArrayList();
     inputJsonBatches.add(batchString.toString());
     long inputSize = getExpectedSize(inputJsonBatches);
+     String inputSizeStr = inputSize + "";
+    // inputSize, as calculated above will be numRows * (inputRowsize),
+    // inputRowSize = metadata cols + sizeof("abcde"), numRows = 4000
+    // So, inputSize = 4000 * ( 4 + 1 + 5 ) = 40000
+    // inputSize is used as the batch memory limit for the tests.
+    // Depending on the function being evaluated, different output batch counts will be expected
 
-    String [][] ops = {{"concat", strValue + strValue, "concat(a,a)", inputSize + "", 2 + ""},// o/p size will be 2 x i/p size
-                       {"upper", strValue.toUpperCase(),"upper(a)", inputSize + "", 1 + ""}// o/p size will same as i/p size
+    String [][] ops = {  //{ OP name, OP result, OP SQL str, Memory Limit, Num Expected Batches }
+
+                         // concat() o/p size will be 2 x input size, so at least 2 batches expected
+                         {"concat", strValue + strValue, "concat(a,a)", inputSizeStr, 2 + ""},
+                         // upper() o/p size will same as input size, so at least 1 batch is expected
+                         {"upper", strValue.toUpperCase(),"upper(a)", inputSizeStr, 1 + ""},
+                         // repeat() is assumed to produce a row-size of 50.
+                         // input row size is 10 (null vector + offset vector + abcde)
+                         // so at least 5 batches are expected
+                         {"repeat", strValue + strValue, "repeatstr(a, 2)", inputSizeStr, 5 + ""},
+                         // substr() is assumed to produce a row size which is same as input
+                         // so at least 1 batch is expected
+                         {"substr", strValue.substring(0, 4), "substr(a, 1, 4)", inputSizeStr, 1 + "" }
                       };
 
     for (String[] op : ops) {
@@ -190,6 +207,12 @@ public class TestOutputBatchSize extends PhysicalOpUnitTestBase {
   public void testProjectZeroWidth() throws Exception {
 
   }
+
+  @Test
+  public void testProjectEmptyBatch() throws Exception {
+
+  }
+
 
   @Test
   public void testProjectComplexWriter() throws Exception {
