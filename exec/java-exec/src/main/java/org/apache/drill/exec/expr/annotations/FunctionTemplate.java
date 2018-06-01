@@ -98,10 +98,16 @@ public @interface FunctionTemplate {
     DEFAULT(OutputWidthCalculators.DefaultOutputWidthCalculator.INSTANCE),
     CLONE(OutputWidthCalculators.CloneOutputWidthCalculator.INSTANCE),
     CONCAT(OutputWidthCalculators.ConcatOutputWidthCalculator.INSTANCE),
-    // Custom calculator are place holder markers on functions until support
+    // Custom calculator are required for functions that don't fall in to any pre-defined
+    // calculator categories - like replace and lpad
+    // place holder markers on functions until support
     // for CUSTOM calculators is implemented
-    CUSTOM(OutputWidthCalculators.DefaultOutputWidthCalculator.INSTANCE),
-    CUSTOM2(OutputWidthCalculators.CloneOutputWidthCalculator.INSTANCE);
+    // CUSTOM_FIXED_WIDTH_DEFUALT will default to a fixed size - for functions like
+    // lpad() where the ouput size does not easily map to the input size
+    CUSTOM_FIXED_WIDTH_DEFUALT(OutputWidthCalculators.DefaultOutputWidthCalculator.INSTANCE),
+    // CUSTOM CLONE will default to CLONE - for functions like replace() where the output
+    // size  does not easily map to the input size but is likely to be at most the size of the input.
+    CUSTOM_CLONE_DEFAULT(OutputWidthCalculators.CloneOutputWidthCalculator.INSTANCE);
     OutputWidthCalculator outputWidthCalculator;
 
     OutputWidthCalculatorType(OutputWidthCalculator outputWidthCalculator) {

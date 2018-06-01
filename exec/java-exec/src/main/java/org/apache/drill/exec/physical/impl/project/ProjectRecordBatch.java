@@ -79,8 +79,6 @@ public class ProjectRecordBatch extends AbstractSingleRecordBatch<Project> {
   static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(ProjectRecordBatch.class);
   private Projector projector;
   private List<ValueVector> allocationVectors;
-
-
   private List<ComplexWriter> complexWriters;
   private List<FieldReference> complexFieldReferencesList;
   private boolean hasRemainder = false;
@@ -213,7 +211,7 @@ public class ProjectRecordBatch extends AbstractSingleRecordBatch<Project> {
           incomingRecordCount = incoming.getRecordCount();
           memoryManager.update();
           if (logger.isTraceEnabled()) {
-            logger.trace("doWork(): mem mngr count 1 " + memoryManager.getOutputRowCount()
+            logger.trace("doWork():[1] memMgr RC " + memoryManager.getOutputRowCount()
                     + ", incoming rc " + incomingRecordCount + " incoming " + incoming
                     + ", project " + this);
           }
@@ -234,7 +232,7 @@ public class ProjectRecordBatch extends AbstractSingleRecordBatch<Project> {
 
     int maxOuputRecordCount = memoryManager.getOutputRowCount();
     if (logger.isTraceEnabled()) {
-      logger.trace("doWork(): mem mngr count 2 " + memoryManager.getOutputRowCount()
+      logger.trace("doWork():[2] memMgr RC " + memoryManager.getOutputRowCount()
               + ", incoming rc " + incomingRecordCount + " incoming " + incoming
               + ", project " + this);
     }
@@ -246,7 +244,7 @@ public class ProjectRecordBatch extends AbstractSingleRecordBatch<Project> {
     final int outputRecords = projector.projectRecords(this.incoming,0, maxOuputRecordCount, 0);
     long projectEndTime = System.currentTimeMillis();
     if (logger.isTraceEnabled()) {
-      logger.trace("doWork: projection" + " records " + outputRecords + ", time " + (projectEndTime - projectStartTime) + " ms");
+      logger.trace("doWork(): projection: " + " records " + outputRecords + ", time " + (projectEndTime - projectStartTime) + " ms");
     }
 
     if (outputRecords < incomingRecordCount) {
@@ -286,7 +284,7 @@ public class ProjectRecordBatch extends AbstractSingleRecordBatch<Project> {
       return;
     }
     if (logger.isTraceEnabled()) {
-      logger.trace("handleRemainder: remaining rc " + remainingRecordCount + " toProcess " + recordsToProcess
+      logger.trace("handleRemainder: remaining RC " + remainingRecordCount + " toProcess " + recordsToProcess
               + " remainder index " + remainderIndex + " incoming " + incoming + " project " + this);
     }
 
@@ -295,7 +293,7 @@ public class ProjectRecordBatch extends AbstractSingleRecordBatch<Project> {
     long projectEndTime = System.currentTimeMillis();
 
     if (logger.isTraceEnabled()) {
-      logger.trace("handleRemainder: projection" + "records " + projRecords + ", time " + (projectEndTime - projectStartTime) + " ms");
+      logger.trace("handleRemainder: projection: " + "records " + projRecords + ", time " + (projectEndTime - projectStartTime) + " ms");
     }
 
     if (projRecords < remainingRecordCount) {

@@ -123,7 +123,7 @@ public class ProjectMemoryManager extends RecordBatchMemoryManager {
         public String getName() { return name; }
     }
 
-    void ShoulgNotReachHere() {
+    void ShouldNotReachHere() {
         throw new IllegalStateException();
     }
 
@@ -150,7 +150,7 @@ public class ProjectMemoryManager extends RecordBatchMemoryManager {
 
     boolean isFixedWidth(TypedFieldId fieldId) {
         ValueVector vv = getOutgoingValueVector(fieldId);
-        return (vv instanceof FixedWidthVector);
+        return isFixedWidth(vv);
     }
 
     public ValueVector getOutgoingValueVector(TypedFieldId fieldId) {
@@ -195,7 +195,7 @@ public class ProjectMemoryManager extends RecordBatchMemoryManager {
 
     static int getWidthOfFixedWidthType(ValueVector vv) {
         assert isFixedWidth(vv);
-        return vv.getPayloadByteCount(1);
+        return ((FixedWidthVector)vv).getValueWidth();
     }
 
     void addTransferField(ValueVector vvOut, String path) {
@@ -210,26 +210,31 @@ public class ProjectMemoryManager extends RecordBatchMemoryManager {
         if(isFixedWidth(vv)) {
             addFixedWidthField(vv);
         } else {
-            variableWidthColumnCount++;
-            ColumnWidthInfo columnWidthInfo;
-            //Variable width transfers
-            if(outputColumnType == OutputColumnType.TRANSFER) {
-                String columnName = path;
-                VarLenReadExpr readExpr = new VarLenReadExpr(columnName);
-                columnWidthInfo = new ColumnWidthInfo(vv, readExpr, outputColumnType,
-                        WidthType.VARIABLE, -1); //fieldWidth has to be obtained from the RecordBatchSizer
-            } else if (isComplex(vv.getField().getType())) {
-                addComplexField(vv);
-                return;
-            } else {
-                // Walk the tree of LogicalExpressions to get a tree of OutputWidthExpressions
-                OutputWidthVisitorState state = new OutputWidthVisitorState(this, outputColumnType);
-                OutputWidthExpression outputWidthExpression = logicalExpression.accept(new OutputWidthVisitor(), state);
-                columnWidthInfo = new ColumnWidthInfo(vv, outputWidthExpression, outputColumnType,
-                        WidthType.VARIABLE, -1); //fieldWidth has to be obtained from the OutputWidthExpression
-            }
-            outputColumnSizes.put(columnWidthInfo.getName(), columnWidthInfo);
+            addVariableWidthField(vv, logicalExpression, outputColumnType, path);
         }
+    }
+
+    private void addVariableWidthField(ValueVector vv, LogicalExpression logicalExpression,
+                                       OutputColumnType outputColumnType, String path) {
+        variableWidthColumnCount++;
+        ColumnWidthInfo columnWidthInfo;
+        //Variable width transfers
+        if(outputColumnType == OutputColumnType.TRANSFER) {
+            String columnName = path;
+            VarLenReadExpr readExpr = new VarLenReadExpr(columnName);
+            columnWidthInfo = new ColumnWidthInfo(vv, readExpr, outputColumnType,
+                    WidthType.VARIABLE, -1); //fieldWidth has to be obtained from the RecordBatchSizer
+        } else if (isComplex(vv.getField().getType())) {
+            addComplexField(vv);
+            return;
+        } else {
+            // Walk the tree of LogicalExpressions to get a tree of OutputWidthExpressions
+            OutputWidthVisitorState state = new OutputWidthVisitorState(this, outputColumnType);
+            OutputWidthExpression outputWidthExpression = logicalExpression.accept(new OutputWidthVisitor(), state);
+            columnWidthInfo = new ColumnWidthInfo(vv, outputWidthExpression, outputColumnType,
+                    WidthType.VARIABLE, -1); //fieldWidth has to be obtained from the OutputWidthExpression
+        }
+        outputColumnSizes.put(columnWidthInfo.getName(), columnWidthInfo);
     }
 
     void addComplexField(ValueVector vv) {
@@ -276,7 +281,7 @@ public class ProjectMemoryManager extends RecordBatchMemoryManager {
             int width = -1;
             if (columnWidthInfo.isFixedWidth()) {
                 // fixed width columns are accumulated in totalFixedWidthColumnWidth
-                ShoulgNotReachHere();
+                ShouldNotReachHere();
             } else {
                 //Walk the tree of OutputWidthExpressions to get a FixedLenExpr
                 //As the tree is walked, the RecordBatchSizer and function annotations

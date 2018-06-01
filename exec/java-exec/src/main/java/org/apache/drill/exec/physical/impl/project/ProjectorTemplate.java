@@ -70,7 +70,7 @@ public abstract class ProjectorTemplate implements Projector {
         }
       }
       final int totalBatchRecordCount = incomingRecordBatch.getRecordCount();
-      if (recordCount < totalBatchRecordCount || i < startIndex + recordCount || startIndex > 0) {
+      if (startIndex + recordCount < totalBatchRecordCount || startIndex > 0 ) {
         for (TransferPair t : transfers) {
           t.splitAndTransfer(startIndex, i - startIndex);
         }

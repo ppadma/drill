@@ -318,6 +318,4 @@ public abstract class DrillFuncHolder extends AbstractFuncHolder {
         + ", parameters=" + (attributes.getParameters() != null ?
         Arrays.asList(attributes.getParameters()).subList(0, Math.min(attributes.getParameters().length, maxLen)) : null) + "]";
   }
-
-
 }

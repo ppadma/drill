@@ -102,8 +102,6 @@ public class FunctionAttributes {
   public boolean isNiladic() {
     return template.isNiladic();
   }
-
-
-
+  
   public boolean checkPrecisionRange() { return template.checkPrecisionRange(); }
 }

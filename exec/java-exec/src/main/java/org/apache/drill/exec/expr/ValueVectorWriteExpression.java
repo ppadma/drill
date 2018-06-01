@@ -67,10 +67,6 @@ public class ValueVectorWriteExpression implements LogicalExpression {
     return visitor.visitUnknown(this, value);
   }
 
-//  public <T, V, E extends Exception> T accept(AbstractExecExprVisitor<T, V, E> visitor, V value) throws E {
-//    return visitor.visitValueVectorWriteExpression(this, value);
-//  }
-
   @Override
   public ExpressionPosition getPosition() {
     return ExpressionPosition.UNKNOWN;
