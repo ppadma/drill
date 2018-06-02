@@ -18,10 +18,10 @@
 package org.apache.drill.exec.physical.impl.project;
 
 import org.apache.drill.common.expression.LogicalExpression;
+import org.apache.drill.common.types.TypeProtos;
 import org.apache.drill.common.types.TypeProtos.DataMode;
 import org.apache.drill.common.types.TypeProtos.MajorType;
 import org.apache.drill.common.types.TypeProtos.MinorType;
-import org.apache.drill.exec.expr.TypeHelper;
 import org.apache.drill.exec.physical.impl.project.OutputWidthExpression.VarLenReadExpr;
 import org.apache.drill.exec.record.RecordBatch;
 import org.apache.drill.exec.record.RecordBatchMemoryManager;
@@ -35,8 +35,6 @@ import org.apache.drill.exec.physical.impl.project.OutputWidthExpression.FixedLe
 
 import java.util.HashMap;
 import java.util.Map;
-
-import static org.apache.drill.exec.vector.AllocationHelper.STD_REPETITION_FACTOR;
 
 /**
  *
@@ -164,12 +162,17 @@ public class ProjectMemoryManager extends RecordBatchMemoryManager {
     static final int BIT_VECTOR_WIDTH = UInt1Vector.VALUE_WIDTH;
     static final int OFFSET_VECTOR_WIDTH = UInt4Vector.VALUE_WIDTH;
 
-    static int getWidthOfFixedWidthType(MajorType majorType) {
+
+    static int getWidthOfFixedWidthType(ValueVector vv) {
+        assert isFixedWidth(vv);
+        return ((FixedWidthVector)vv).getValueWidth();
+    }
+
+    public static int getWidthOfFixedWidthType(TypeProtos.MajorType majorType) {
         DataMode mode = majorType.getMode();
         MinorType minorType = majorType.getMinorType();
         final boolean isVariableWidth  = (minorType == MinorType.VARCHAR || minorType == MinorType.VAR16CHAR
                 || minorType == MinorType.VARBINARY);
-
 
         if (isVariableWidth) {
             throw new IllegalArgumentException("getWidthOfFixedWidthType() cannot handle variable width types");
@@ -177,26 +180,12 @@ public class ProjectMemoryManager extends RecordBatchMemoryManager {
 
         final boolean isOptional = (mode == DataMode.OPTIONAL);
         final boolean isRepeated = (mode == DataMode.REPEATED);
+        final boolean isRepeatedList = false; // repeated
+        final Map<String, RecordBatchSizer.ColumnSize> children = null;
 
-        int stdDataSize = 0;
-
-        if (isOptional) { stdDataSize += BIT_VECTOR_WIDTH; }
-
-        if (minorType != MinorType.NULL) {
-            stdDataSize += TypeHelper.getSize(majorType);
-        }
-
-        if (isRepeated) {
-            stdDataSize = (stdDataSize * STD_REPETITION_FACTOR) + OFFSET_VECTOR_WIDTH;
-        }
-
-        return stdDataSize;
+        return RecordBatchSizer.getStdNetSizePerEntryCommon(majorType, isOptional, isRepeated, isRepeatedList, children);
     }
 
-    static int getWidthOfFixedWidthType(ValueVector vv) {
-        assert isFixedWidth(vv);
-        return ((FixedWidthVector)vv).getValueWidth();
-    }
 
     void addTransferField(ValueVector vvOut, String path) {
         addField(vvOut, null, OutputColumnType.TRANSFER, path);

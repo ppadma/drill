@@ -21,6 +21,7 @@ import java.util.Set;
 import java.util.Map;
 
 import org.apache.drill.common.map.CaseInsensitiveMap;
+import org.apache.drill.common.types.TypeProtos;
 import org.apache.drill.common.types.TypeProtos.DataMode;
 import org.apache.drill.common.types.TypeProtos.MinorType;
 import org.apache.drill.exec.expr.TypeHelper;
@@ -204,30 +205,7 @@ public class RecordBatchSizer {
      * For repeated column, we assume repetition of 10.
      */
     public int getStdNetSizePerEntry() {
-      int stdNetSize;
-      try {
-        stdNetSize = TypeHelper.getSize(metadata.getType());
-      } catch (Exception e) {
-        stdNetSize = 0;
-      }
-
-      if (isOptional) {
-        stdNetSize += BIT_VECTOR_WIDTH;
-      }
-
-      if (isRepeated) {
-        stdNetSize = (stdNetSize * STD_REPETITION_FACTOR) + OFFSET_VECTOR_WIDTH;
-      }
-
-      for (ColumnSize columnSize : children.values()) {
-        stdNetSize += columnSize.getStdNetSizePerEntry();
-      }
-
-      if (isRepeatedList()) {
-        stdNetSize = (stdNetSize * STD_REPETITION_FACTOR) + OFFSET_VECTOR_WIDTH;
-      }
-
-      return stdNetSize;
+      return getStdNetSizePerEntryCommon(metadata.getType(), isOptional, isRepeated, isRepeatedList(), children);
     }
 
     /**
@@ -598,6 +576,36 @@ public class RecordBatchSizer {
       }
     }
 
+  }
+
+   public static int getStdNetSizePerEntryCommon(TypeProtos.MajorType majorType, boolean isOptional, boolean isRepeated,
+                                                 boolean isRepeatedList, Map<String, ColumnSize> children) {
+    int stdNetSize;
+    try {
+      stdNetSize = TypeHelper.getSize(majorType);
+    } catch (Exception e) {
+      stdNetSize = 0;
+    }
+
+    if (isOptional) {
+      stdNetSize += BIT_VECTOR_WIDTH;
+    }
+
+    if (isRepeated) {
+      stdNetSize = (stdNetSize * STD_REPETITION_FACTOR) + OFFSET_VECTOR_WIDTH;
+    }
+
+    if (children != null) {
+      for (ColumnSize columnSize : children.values()) {
+        stdNetSize += columnSize.getStdNetSizePerEntry();
+      }
+    }
+
+    if (isRepeatedList) {
+      stdNetSize = (stdNetSize * STD_REPETITION_FACTOR) + OFFSET_VECTOR_WIDTH;
+    }
+
+    return stdNetSize;
   }
 
   public ColumnSize getComplexColumn(String path) {
