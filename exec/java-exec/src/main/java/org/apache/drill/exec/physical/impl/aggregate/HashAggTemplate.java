@@ -79,6 +79,7 @@ import org.apache.drill.exec.vector.ValueVector;
 
 import org.apache.drill.exec.vector.VariableWidthVector;
 
+import static org.apache.drill.exec.physical.impl.common.HashTable.BATCH_SIZE;
 import static org.apache.drill.exec.record.RecordBatch.MAX_BATCH_SIZE;
 
 public abstract class HashAggTemplate implements HashAggregator {
@@ -193,17 +194,48 @@ public abstract class HashAggTemplate implements HashAggregator {
     }
   }
 
+  public int idxInBatch(int parition, int idx) {
+
+    int totalSize = 0;
+
+    for (int i=0; i < batchHolders[parition].size(); i++) {
+      if (idx < (totalSize + batchHolders[parition].get(i).batchSize)) {
+        return (idx - totalSize);
+      }
+      totalSize += batchHolders[parition].get(i).batchSize;
+    }
+
+    throw new IllegalArgumentException("idx must be less than total size");
+
+  }
+
+  public int idxOfBatch(int partition, int idx) {
+    int totalSize = 0;
+
+    for (int i=0; i < batchHolders[partition].size(); i++) {
+      totalSize += batchHolders[partition].get(i).batchSize;
+      if (idx < totalSize) {
+        return i;
+      }
+    }
+
+    throw new IllegalArgumentException("idx must be less than total size");
+  }
+
   public class BatchHolder {
 
     private VectorContainer aggrValuesContainer; // container for aggr values (workspace variables)
     private int maxOccupiedIdx = -1;
     private int batchOutputCount = 0;
+    private int batchSize = 0;
 
     @SuppressWarnings("resource")
-    public BatchHolder() {
+    public BatchHolder(int batchSize) {
 
       aggrValuesContainer = new VectorContainer();
       boolean success = false;
+      this.batchSize = batchSize;
+
       try {
         ValueVector vector;
 
@@ -219,12 +251,12 @@ public abstract class HashAggTemplate implements HashAggregator {
           // BatchHolder in HashTable, causing the HashTable to be space inefficient. So it is better to allocate space
           // to fit as close to as BATCH_SIZE records.
           if (vector instanceof FixedWidthVector) {
-            ((FixedWidthVector) vector).allocateNew(HashTable.BATCH_SIZE);
+            ((FixedWidthVector) vector).allocateNew(batchSize);
           } else if (vector instanceof VariableWidthVector) {
             // This case is never used .... a varchar falls under ObjectVector which is allocated on the heap !
-            ((VariableWidthVector) vector).allocateNew(maxColumnWidth, HashTable.BATCH_SIZE);
+            ((VariableWidthVector) vector).allocateNew(maxColumnWidth, batchSize);
           } else if (vector instanceof ObjectVector) {
-            ((ObjectVector) vector).allocateNew(HashTable.BATCH_SIZE);
+            ((ObjectVector) vector).allocateNew(batchSize);
           } else {
             vector.allocateNew();
           }
@@ -1000,7 +1032,7 @@ public abstract class HashAggTemplate implements HashAggregator {
 
   // These methods are overridden in the generated class when created as plain Java code.
   protected BatchHolder newBatchHolder() {
-    return new BatchHolder();
+    return new BatchHolder(MAX_BATCH_SIZE);
   }
 
   /**
@@ -1283,7 +1315,7 @@ public abstract class HashAggTemplate implements HashAggregator {
     // ==========================================
     try {
 
-      putStatus = htables[currentPartition].put(incomingRowIdx, htIdxHolder, hashCode);
+      putStatus = htables[currentPartition].put(incomingRowIdx, htIdxHolder, hashCode, BATCH_SIZE);
 
     } catch (RetryAfterSpillException re) {
       if ( ! canSpill ) { throw new OutOfMemoryException(getOOMErrorMsg("Can not spill")); }
@@ -1353,8 +1385,10 @@ public abstract class HashAggTemplate implements HashAggregator {
     // Locate the matching aggregate columns and perform the aggregation
     // =================================================================
     int currentIdx = htIdxHolder.value;
-    BatchHolder bh = batchHolders[currentPartition].get((currentIdx >>> 16) & HashTable.BATCH_MASK);
-    int idxWithinBatch = currentIdx & HashTable.BATCH_MASK;
+   // BatchHolder bh = batchHolders[currentPartition].get((currentIdx >>> 16) & HashTable.BATCH_MASK);
+    BatchHolder bh = batchHolders[currentPartition].get(idxOfBatch(currentPartition, currentIdx));
+   // int idxWithinBatch = currentIdx & HashTable.BATCH_MASK;
+    int idxWithinBatch = idxInBatch(currentPartition, currentIdx);
     if (bh.updateAggrValues(incomingRowIdx, idxWithinBatch)) {
       numGroupedRecords++;
     }
