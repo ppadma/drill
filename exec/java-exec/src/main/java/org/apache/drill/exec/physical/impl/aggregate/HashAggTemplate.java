@@ -193,17 +193,48 @@ public abstract class HashAggTemplate implements HashAggregator {
     }
   }
 
+  public int idxInBatch(int parition, int idx) {
+
+    int totalSize = 0;
+
+    for (int i=0; i < batchHolders[parition].size(); i++) {
+      if (idx < (totalSize + batchHolders[parition].get(i).batchSize)) {
+        return (idx - totalSize);
+      }
+      totalSize += batchHolders[parition].get(i).batchSize;
+    }
+
+    throw new IllegalArgumentException("idx must be less than total size");
+
+  }
+
+  public int idxOfBatch(int partition, int idx) {
+    int totalSize = 0;
+
+    for (int i=0; i < batchHolders[partition].size(); i++) {
+      totalSize += batchHolders[partition].get(i).batchSize;
+      if (idx < totalSize) {
+        return i;
+      }
+    }
+
+    throw new IllegalArgumentException("idx must be less than total size");
+  }
+
   public class BatchHolder {
 
     private VectorContainer aggrValuesContainer; // container for aggr values (workspace variables)
     private int maxOccupiedIdx = -1;
-    private int batchOutputCount = 0;
+  //  private int batchOutputCount = 0;
+    private int batchSize = 0;
 
     @SuppressWarnings("resource")
-    public BatchHolder() {
+    public BatchHolder(int batchSize) {
 
       aggrValuesContainer = new VectorContainer();
       boolean success = false;
+      this.batchSize = batchSize;
+
       try {
         ValueVector vector;
 
@@ -219,12 +250,12 @@ public abstract class HashAggTemplate implements HashAggregator {
           // BatchHolder in HashTable, causing the HashTable to be space inefficient. So it is better to allocate space
           // to fit as close to as BATCH_SIZE records.
           if (vector instanceof FixedWidthVector) {
-            ((FixedWidthVector) vector).allocateNew(HashTable.BATCH_SIZE);
+            ((FixedWidthVector) vector).allocateNew(batchSize);
           } else if (vector instanceof VariableWidthVector) {
             // This case is never used .... a varchar falls under ObjectVector which is allocated on the heap !
-            ((VariableWidthVector) vector).allocateNew(maxColumnWidth, HashTable.BATCH_SIZE);
+            ((VariableWidthVector) vector).allocateNew(maxColumnWidth, batchSize);
           } else if (vector instanceof ObjectVector) {
-            ((ObjectVector) vector).allocateNew(HashTable.BATCH_SIZE);
+            ((ObjectVector) vector).allocateNew(batchSize);
           } else {
             vector.allocateNew();
           }
@@ -252,6 +283,7 @@ public abstract class HashAggTemplate implements HashAggregator {
     }
 
     private void outputValues(IndexPointer outStartIdxHolder, IndexPointer outNumRecordsHolder) {
+      int batchOutputCount = 0;
       outStartIdxHolder.value = batchOutputCount;
       outNumRecordsHolder.value = 0;
       for (int i = batchOutputCount; i <= maxOccupiedIdx; i++) {
@@ -274,7 +306,7 @@ public abstract class HashAggTemplate implements HashAggregator {
     }
 
     private int getNumPendingOutput() {
-      return getNumGroups() - batchOutputCount;
+      return getNumGroups();
     }
 
     // Code-generated methods (implemented in HashAggBatch)
@@ -510,6 +542,18 @@ public abstract class HashAggTemplate implements HashAggregator {
    * @param incoming
    */
   private void updateEstMaxBatchSize(RecordBatch incoming) {
+
+    /*
+    estMaxBatchSize = outgoing.getHashAggMemoryManager().getEstOutputBatchSize();
+    estValuesBatchSize = outgoing.getHashAggMemoryManager().getEstValuesBatchSize();
+    estOutgoingAllocSize = estValuesBatchSize;
+
+    estValuesRowWidth = outgoing.getHashAggMemoryManager().avgValuesRowWidth;
+    estRowWidth = outgoing.getHashAggMemoryManager().avgOutgoingRowWidth;
+    estOutputRowWidth = outgoing.getHashAggMemoryManager().avgOutgoingRowWidth;
+    */
+
+
     if ( estMaxBatchSize > 0 ) { return; }  // no handling of a schema (or varchar) change
     // Use the sizer to get the input row width and the length of the longest varchar column
     RecordBatchSizer sizer = new RecordBatchSizer(incoming);
@@ -551,6 +595,7 @@ public abstract class HashAggTemplate implements HashAggregator {
     if ( estMaxBatchSize > allocator.getLimit() ) {
       logger.warn("HashAggregate: Estimated max batch size {} is larger than the memory limit {}",estMaxBatchSize,allocator.getLimit());
     }
+
   }
 
   /**
@@ -987,9 +1032,9 @@ public abstract class HashAggTemplate implements HashAggregator {
     logger.trace("HASH AGG: Spilled {} rows from {} batches of partition {}", rowsInPartition, currPartition.size(), part);
   }
 
-  private void addBatchHolder(int part) {
+  private void addBatchHolder(int part, int batchSize) {
 
-    BatchHolder bh = newBatchHolder();
+    BatchHolder bh = newBatchHolder(batchSize);
     batchHolders[part].add(bh);
     if (EXTRA_DEBUG_1) {
       logger.debug("HashAggregate: Added new batch; num batches = {}.", batchHolders[part].size());
@@ -999,8 +1044,8 @@ public abstract class HashAggTemplate implements HashAggregator {
   }
 
   // These methods are overridden in the generated class when created as plain Java code.
-  protected BatchHolder newBatchHolder() {
-    return new BatchHolder();
+  protected BatchHolder newBatchHolder(int batchSize) {
+    return new BatchHolder(batchSize);
   }
 
   /**
@@ -1216,6 +1261,10 @@ public abstract class HashAggTemplate implements HashAggregator {
     return errmsg;
   }
 
+  private int getBatchSize() {
+    return outgoing.getBatchSize();
+  }
+
   // Check if a group is present in the hash table; if not, insert it in the hash table.
   // The htIdxHolder contains the index of the group in the hash table container; this same
   // index is also used for the aggregation values maintained by the hash aggregate.
@@ -1283,7 +1332,7 @@ public abstract class HashAggTemplate implements HashAggregator {
     // ==========================================
     try {
 
-      putStatus = htables[currentPartition].put(incomingRowIdx, htIdxHolder, hashCode);
+      putStatus = htables[currentPartition].put(incomingRowIdx, htIdxHolder, hashCode, getBatchSize());
 
     } catch (RetryAfterSpillException re) {
       if ( ! canSpill ) { throw new OutOfMemoryException(getOOMErrorMsg("Can not spill")); }
@@ -1317,7 +1366,7 @@ public abstract class HashAggTemplate implements HashAggregator {
 
         useReservedValuesMemory(); // try to preempt an OOM by using the reserve
 
-        addBatchHolder(currentPartition);  // allocate a new (internal) values batch
+        addBatchHolder(currentPartition, getBatchSize());  // allocate a new (internal) values batch
 
         restoreReservedMemory(); // restore the reserve, if possible
         // A reason to check for a spill - In case restore-reserve failed
@@ -1353,8 +1402,10 @@ public abstract class HashAggTemplate implements HashAggregator {
     // Locate the matching aggregate columns and perform the aggregation
     // =================================================================
     int currentIdx = htIdxHolder.value;
-    BatchHolder bh = batchHolders[currentPartition].get((currentIdx >>> 16) & HashTable.BATCH_MASK);
-    int idxWithinBatch = currentIdx & HashTable.BATCH_MASK;
+   // BatchHolder bh = batchHolders[currentPartition].get((currentIdx >>> 16) & HashTable.BATCH_MASK);
+    BatchHolder bh = batchHolders[currentPartition].get(idxOfBatch(currentPartition, currentIdx));
+   // int idxWithinBatch = currentIdx & HashTable.BATCH_MASK;
+    int idxWithinBatch = idxInBatch(currentPartition, currentIdx);
     if (bh.updateAggrValues(incomingRowIdx, idxWithinBatch)) {
       numGroupedRecords++;
     }

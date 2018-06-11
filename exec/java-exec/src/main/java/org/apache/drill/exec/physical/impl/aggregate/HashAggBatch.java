@@ -19,16 +19,20 @@ package org.apache.drill.exec.physical.impl.aggregate;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
 import com.google.common.collect.Lists;
 import org.apache.drill.common.exceptions.ExecutionSetupException;
 import org.apache.drill.common.exceptions.UserException;
 import org.apache.drill.common.expression.ErrorCollector;
 import org.apache.drill.common.expression.ErrorCollectorImpl;
+import org.apache.drill.common.expression.FunctionCall;
 import org.apache.drill.common.expression.FunctionHolderExpression;
 import org.apache.drill.common.expression.IfExpression;
 import org.apache.drill.common.expression.LogicalExpression;
+import org.apache.drill.common.expression.SchemaPath;
 import org.apache.drill.common.logical.data.NamedExpression;
+import org.apache.drill.common.map.CaseInsensitiveMap;
 import org.apache.drill.exec.ExecConstants;
 import org.apache.drill.exec.compile.sig.GeneratorMapping;
 import org.apache.drill.exec.compile.sig.MappingSet;
@@ -50,11 +54,14 @@ import org.apache.drill.exec.record.BatchSchema;
 import org.apache.drill.exec.record.BatchSchema.SelectionVectorMode;
 import org.apache.drill.exec.record.MaterializedField;
 import org.apache.drill.exec.record.RecordBatch;
+import org.apache.drill.exec.record.RecordBatchMemoryManager;
+import org.apache.drill.exec.record.RecordBatchSizer;
 import org.apache.drill.exec.record.TypedFieldId;
 import org.apache.drill.exec.record.VectorWrapper;
 import org.apache.drill.exec.record.selection.SelectionVector2;
 import org.apache.drill.exec.record.selection.SelectionVector4;
 import org.apache.drill.exec.vector.AllocationHelper;
+import org.apache.drill.exec.vector.FixedWidthVector;
 import org.apache.drill.exec.vector.ValueVector;
 
 import com.sun.codemodel.JExpr;
@@ -72,6 +79,11 @@ public class HashAggBatch extends AbstractRecordBatch<HashAggregate> {
   private BatchSchema incomingSchema;
   private boolean wasKilled;
 
+  private int numGroupByExprs, numAggrExprs;
+
+  private final HashAggBatch.HashAggMemoryManager hashAggMemoryManager;
+  Map<String, String> columnMapping;
+
   private final GeneratorMapping UPDATE_AGGR_INSIDE =
       GeneratorMapping.create("setupInterior" /* setup method */, "updateAggrValuesInternal" /* eval method */,
           "resetValues" /* reset */, "cleanup" /* cleanup */);
@@ -85,6 +97,79 @@ public class HashAggBatch extends AbstractRecordBatch<HashAggregate> {
           "htRowIdx" /* workspace index */, "incoming" /* read container */, "outgoing" /* write container */,
           "aggrValuesContainer" /* workspace container */, UPDATE_AGGR_INSIDE, UPDATE_AGGR_OUTSIDE, UPDATE_AGGR_INSIDE);
 
+
+  public int getBatchSize() {
+    return hashAggMemoryManager.getOutputRowCount();
+  }
+
+  public HashAggMemoryManager getHashAggMemoryManager() {
+    return hashAggMemoryManager;
+  }
+
+  public class HashAggMemoryManager extends RecordBatchMemoryManager {
+
+    public int avgOutgoingRowWidth = 0;
+    public int avgValuesRowWidth = 0;
+
+    HashAggMemoryManager(int outputBatchSize) {
+      super(outputBatchSize);
+    }
+
+    public int getEstOutputBatchSize() {
+      return avgOutgoingRowWidth * getOutputRowCount();
+    }
+
+    public int getEstValuesBatchSize() {
+      return avgValuesRowWidth * getOutputRowCount();
+    }
+
+    public int getEstValueswidth() {
+      return avgValuesRowWidth;
+    }
+
+    @Override
+    public void update() {
+      // Get sizing information for the batch.
+      setRecordBatchSizer(new RecordBatchSizer(incoming));
+
+      int fieldId = 0;
+
+      for (VectorWrapper<?> w : container) {
+        // AllocationHelper.allocatePrecomputedChildCount(w.getValueVector(), 0, 0, 0);
+        if (w.getValueVector() instanceof FixedWidthVector) {
+          avgOutgoingRowWidth += ((FixedWidthVector) w.getValueVector()).getValueWidth();
+          if (fieldId >= numGroupByExprs) {
+            avgValuesRowWidth += ((FixedWidthVector) w.getValueVector()).getValueWidth();
+          }
+        } else {
+          RecordBatchSizer.ColumnSize columnSize = getRecordBatchSizer().getColumn(columnMapping.get(w.getValueVector().getField().getName()));
+          avgOutgoingRowWidth += columnSize.getAllocSizePerEntry();
+          if (fieldId >= numGroupByExprs) {
+            avgValuesRowWidth += columnSize.getAllocSizePerEntry();
+          }
+        }
+        fieldId++;
+      }
+
+      final int outputBatchSize = getOutputBatchSize();
+      // Number of rows in outgoing batch
+      setOutputRowCount(outputBatchSize, avgOutgoingRowWidth);
+
+      setOutgoingRowWidth(avgOutgoingRowWidth);
+
+      // Limit to lower bound of total number of rows possible for this batch
+      // i.e. all rows fit within memory budget.
+      // setOutputRowCount(MAX_BATCH_SIZE);
+
+      if (logger.isDebugEnabled()) {
+        logger.debug("BATCH_STATS, incoming:\n {}", getRecordBatchSizer());
+      }
+
+      updateIncomingStats();
+    }
+
+
+  }
 
   public HashAggBatch(HashAggregate popConfig, RecordBatch incoming, FragmentContext context) throws ExecutionSetupException {
     super(popConfig, context);
@@ -104,6 +189,12 @@ public class HashAggBatch extends AbstractRecordBatch<HashAggregate> {
 
     boolean allowed = oContext.getAllocator().setLenient();
     logger.debug("Config: Is allocator lenient? {}", allowed);
+
+    // get the output batch size from config.
+    int configuredBatchSize = (int) context.getOptions().getOption(ExecConstants.OUTPUT_BATCH_SIZE_VALIDATOR);
+    hashAggMemoryManager = new HashAggMemoryManager(configuredBatchSize);
+
+    columnMapping = CaseInsensitiveMap.newHashMap();
   }
 
   @Override
@@ -134,9 +225,12 @@ public class HashAggBatch extends AbstractRecordBatch<HashAggregate> {
     if (!createAggregator()) {
       state = BatchState.DONE;
     }
+
     for (VectorWrapper<?> w : container) {
       AllocationHelper.allocatePrecomputedChildCount(w.getValueVector(), 0, 0, 0);
     }
+
+    hashAggMemoryManager.update();
   }
 
   @Override
@@ -227,10 +321,11 @@ public class HashAggBatch extends AbstractRecordBatch<HashAggregate> {
     ClassGenerator<HashAggregator> cg = top.getRoot();
     ClassGenerator<HashAggregator> cgInner = cg.getInnerGenerator("BatchHolder");
     top.plainJavaCapable(true);
+    top.saveCodeForDebugging(true);
     container.clear();
 
-    int numGroupByExprs = (popConfig.getGroupByExprs() != null) ? popConfig.getGroupByExprs().size() : 0;
-    int numAggrExprs = (popConfig.getAggrExprs() != null) ? popConfig.getAggrExprs().size() : 0;
+    numGroupByExprs = (popConfig.getGroupByExprs() != null) ? popConfig.getGroupByExprs().size() : 0;
+    numAggrExprs = (popConfig.getAggrExprs() != null) ? popConfig.getAggrExprs().size() : 0;
     aggrExprs = new LogicalExpression[numAggrExprs];
     groupByOutFieldIds = new TypedFieldId[numGroupByExprs];
     aggrOutFieldIds = new TypedFieldId[numAggrExprs];
@@ -253,13 +348,13 @@ public class HashAggBatch extends AbstractRecordBatch<HashAggregate> {
 
       // add this group-by vector to the output container
       groupByOutFieldIds[i] = container.add(vv);
+      columnMapping.put(outputField.getName(), ne.getRef().getAsNamePart().getName());
     }
 
     int extraNonNullColumns = 0; // each of SUM, MAX and MIN gets an extra bigint column
     for (i = 0; i < numAggrExprs; i++) {
       NamedExpression ne = popConfig.getAggrExprs().get(i);
-      final LogicalExpression expr =
-          ExpressionTreeMaterializer.materialize(ne.getExpr(), incoming, collector, context.getFunctionRegistry());
+      final LogicalExpression expr = ExpressionTreeMaterializer.materialize(ne.getExpr(), incoming, collector, context.getFunctionRegistry());
 
       if (expr instanceof IfExpression) {
         throw UserException.unsupportedError(new UnsupportedOperationException("Union type not supported in aggregate functions")).build(logger);
@@ -273,16 +368,23 @@ public class HashAggBatch extends AbstractRecordBatch<HashAggregate> {
         continue;
       }
 
-      if ( expr instanceof FunctionHolderExpression ) {
-         String funcName = ((FunctionHolderExpression) expr).getName();
-         if ( funcName.equals("sum") || funcName.equals("max") || funcName.equals("min") ) {extraNonNullColumns++;}
-      }
       final MaterializedField outputField = MaterializedField.create(ne.getRef().getAsNamePart().getName(), expr.getMajorType());
-      @SuppressWarnings("resource")
-      ValueVector vv = TypeHelper.getNewVector(outputField, oContext.getAllocator());
+      @SuppressWarnings("resource") ValueVector vv = TypeHelper.getNewVector(outputField, oContext.getAllocator());
       aggrOutFieldIds[i] = container.add(vv);
 
       aggrExprs[i] = new ValueVectorWriteExpression(aggrOutFieldIds[i], expr, true);
+
+      if (expr instanceof FunctionHolderExpression) {
+        String funcName = ((FunctionHolderExpression) expr).getName();
+        if (funcName.equals("sum") || funcName.equals("max") || funcName.equals("min")) {
+          extraNonNullColumns++;
+        }
+        if (((FunctionCall) ne.getExpr()).args.get(0) instanceof SchemaPath) {
+          columnMapping.put(outputField.getName(), ((SchemaPath) ((FunctionCall) ne.getExpr()).args.get(0)).getAsNamePart().getName());
+        }
+      } else {
+        columnMapping.put(outputField.getName(), ne.getRef().getAsNamePart().getName());
+      }
     }
 
     setupUpdateAggrValues(cgInner);

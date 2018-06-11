@@ -46,28 +46,30 @@ class HashTableAllocationTracker
     remainingCapacity = config.getInitialCapacity();
   }
 
-  public int getNextBatchHolderSize() {
+  public int getNextBatchHolderSize(int batchSize) {
     state = State.ALLOCATION_IN_PROGRESS;
 
     if (!config.getInitialSizeIsFinal()) {
       // We don't know the final size of the hash table, so return the default max batch holder size
-      return maxBatchHolderSize;
+     // return maxBatchHolderSize;
+      return batchSize;
     } else {
       // We know the final size of the hash table so we need to compute the next batch holder size.
 
       Preconditions.checkState(remainingCapacity > 0);
-      return computeNextBatchHolderSize();
+      return computeNextBatchHolderSize(batchSize);
     }
   }
 
-  private int computeNextBatchHolderSize() {
-    return Math.min(remainingCapacity, maxBatchHolderSize);
+  private int computeNextBatchHolderSize(int batchSize) {
+    return Math.min(batchSize, Math.min(remainingCapacity, maxBatchHolderSize));
   }
 
-  public void commit() {
+  public void commit(int batchSize) {
     Preconditions.checkState(state.equals(State.ALLOCATION_IN_PROGRESS));
 
-    remainingCapacity -= computeNextBatchHolderSize();
+   // remainingCapacity -= computeNextBatchHolderSize();
+    remainingCapacity -= batchSize;
     state = State.NO_ALLOCATION_IN_PROGRESS;
   }
 }
