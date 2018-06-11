@@ -21,6 +21,8 @@ import com.google.common.collect.Lists;
 import org.junit.Assert;
 import org.junit.Test;
 
+import static org.apache.drill.exec.physical.impl.common.HashTable.BATCH_SIZE;
+
 public class HashTableAllocationTrackerTest {
   @Test
   public void testDoubleGetNextCall() {
@@ -28,7 +30,7 @@ public class HashTableAllocationTrackerTest {
     final HashTableAllocationTracker tracker = new HashTableAllocationTracker(config, 30);
 
     for (int counter = 0; counter < 100; counter++) {
-      Assert.assertEquals(30, tracker.getNextBatchHolderSize());
+      Assert.assertEquals(30, tracker.getNextBatchHolderSize(BATCH_SIZE));
     }
   }
 
@@ -37,7 +39,7 @@ public class HashTableAllocationTrackerTest {
     final HashTableConfig config = new HashTableConfig(100, .5f, Lists.newArrayList(), Lists.newArrayList(), Lists.newArrayList());
     final HashTableAllocationTracker tracker = new HashTableAllocationTracker(config, 30);
 
-    tracker.commit();
+    tracker.commit(30);
   }
 
   @Test(expected = IllegalStateException.class)
@@ -45,8 +47,8 @@ public class HashTableAllocationTrackerTest {
     final HashTableConfig config = new HashTableConfig(100, .5f, Lists.newArrayList(), Lists.newArrayList(), Lists.newArrayList());
     final HashTableAllocationTracker tracker = new HashTableAllocationTracker(config, 30);
 
-    tracker.commit();
-    tracker.commit();
+    tracker.commit(30);
+    tracker.commit(30);
   }
 
   @Test
@@ -54,7 +56,7 @@ public class HashTableAllocationTrackerTest {
     final HashTableConfig config = new HashTableConfig(100, .5f, Lists.newArrayList(), Lists.newArrayList(), Lists.newArrayList());
     final HashTableAllocationTracker tracker = new HashTableAllocationTracker(config, 30);
 
-    tracker.getNextBatchHolderSize();
+    tracker.getNextBatchHolderSize(30);
   }
 
   /**
@@ -66,8 +68,8 @@ public class HashTableAllocationTrackerTest {
     final HashTableAllocationTracker tracker = new HashTableAllocationTracker(config, 30);
 
     for (int counter = 0; counter < 100; counter++) {
-      Assert.assertEquals(30, tracker.getNextBatchHolderSize());
-      tracker.commit();
+      Assert.assertEquals(30, tracker.getNextBatchHolderSize(30));
+      tracker.commit(30);
     }
   }
 
@@ -79,19 +81,19 @@ public class HashTableAllocationTrackerTest {
     final HashTableConfig config = new HashTableConfig(100, true, .5f, Lists.newArrayList(), Lists.newArrayList(), Lists.newArrayList());
     final HashTableAllocationTracker tracker = new HashTableAllocationTracker(config, 30);
 
-    Assert.assertEquals(30, tracker.getNextBatchHolderSize());
-    tracker.commit();
-    Assert.assertEquals(30, tracker.getNextBatchHolderSize());
-    tracker.commit();
-    Assert.assertEquals(30, tracker.getNextBatchHolderSize());
-    tracker.commit();
-    Assert.assertEquals(10, tracker.getNextBatchHolderSize());
-    tracker.commit();
+    Assert.assertEquals(30, tracker.getNextBatchHolderSize(30));
+    tracker.commit(30);
+    Assert.assertEquals(30, tracker.getNextBatchHolderSize(30));
+    tracker.commit(30);
+    Assert.assertEquals(30, tracker.getNextBatchHolderSize(30));
+    tracker.commit(30);
+    Assert.assertEquals(10, tracker.getNextBatchHolderSize(30));
+    tracker.commit(30);
 
     boolean caughtException = false;
 
     try {
-      tracker.getNextBatchHolderSize();
+      tracker.getNextBatchHolderSize(BATCH_SIZE);
     } catch (IllegalStateException ex) {
       caughtException = true;
     }

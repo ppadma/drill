@@ -82,7 +82,7 @@ public interface HashTable {
    */
   int getProbeHashCode(int incomingRowIdx) throws SchemaChangeException;
 
-  PutStatus put(int incomingRowIdx, IndexPointer htIdxHolder, int hashCode) throws SchemaChangeException, RetryAfterSpillException;
+  PutStatus put(int incomingRowIdx, IndexPointer htIdxHolder, int hashCode, int batchSize) throws SchemaChangeException, RetryAfterSpillException;
 
   /**
    * @param incomingRowIdx The index of the key in the probe batch.
