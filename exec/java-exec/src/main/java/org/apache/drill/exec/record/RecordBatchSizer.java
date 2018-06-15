@@ -610,12 +610,7 @@ public class RecordBatchSizer {
    * Number of records (rows) in the batch.
    */
   private int rowCount;
-  /**
-   * Standard row width using Drill meta-data. Note: this information is
-   * 100% bogus. Do not use it.
-   */
-  @Deprecated
-  private int stdRowWidth;
+
   /**
    * Actual batch size summing all buffers used to store data
    * for the batch.
@@ -691,7 +686,6 @@ public class RecordBatchSizer {
     for (VectorWrapper<?> vw : va) {
       ColumnSize colSize = measureColumn(vw.getValueVector(), "");
       columnSizes.put(vw.getField().getName(), colSize);
-      stdRowWidth += colSize.getStdDataSizePerEntry();
       netBatchSize += colSize.getTotalNetSize();
       maxSize = Math.max(maxSize, colSize.getTotalDataSize());
       if (colSize.metadata.isNullable()) {
@@ -823,7 +817,15 @@ public class RecordBatchSizer {
   }
 
   public int rowCount() { return rowCount; }
-  public int stdRowWidth() { return stdRowWidth; }
+
+  public int stdRowWidth() {
+    int rowWidth = 0;
+    for (ColumnSize columnSize : columnSizes.values()) {
+      rowWidth += columnSize.getStdDataSizePerEntry();
+    }
+    return rowWidth;
+  }
+
   public int grossRowWidth() { return grossRowWidth; }
   public int netRowWidth() { return netRowWidth; }
   public int getRowAllocSize() { return rowAllocSize; }
