@@ -31,6 +31,7 @@ import org.apache.drill.common.expression.ErrorCollectorImpl;
 import org.apache.drill.common.expression.LogicalExpression;
 import org.apache.drill.common.expression.SchemaPath;
 import org.apache.drill.common.logical.data.Order.Ordering;
+import org.apache.drill.exec.ExecConstants;
 import org.apache.drill.exec.compile.sig.GeneratorMapping;
 import org.apache.drill.exec.compile.sig.MappingSet;
 import org.apache.drill.exec.exception.ClassTransformationException;
@@ -61,6 +62,8 @@ import org.apache.drill.exec.record.RawFragmentBatch;
 import org.apache.drill.exec.record.RawFragmentBatchProvider;
 import org.apache.drill.exec.record.RecordBatch;
 import org.apache.drill.exec.record.RecordBatchLoader;
+import org.apache.drill.exec.record.RecordBatchMemoryManager;
+import org.apache.drill.exec.record.RecordBatchSizer;
 import org.apache.drill.exec.record.SchemaBuilder;
 import org.apache.drill.exec.record.TypedFieldId;
 import org.apache.drill.exec.record.VectorAccessible;
@@ -93,7 +96,9 @@ public class MergingRecordBatch extends AbstractRecordBatch<MergingReceiverPOP> 
   private static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(MergingRecordBatch.class);
   private static final ControlsInjector injector = ControlsInjectorFactory.getInjector(MergingRecordBatch.class);
 
-  private static final int OUTGOING_BATCH_SIZE = 32 * 1024;
+ // private static final int OUTGOING_BATCH_SIZE = 32 * 1024;
+
+  private int targetOutputRowCount;
 
   private RecordBatchLoader[] batchLoaders;
   private final RawFragmentBatchProvider[] fragProviders;
@@ -114,6 +119,8 @@ public class MergingRecordBatch extends AbstractRecordBatch<MergingReceiverPOP> 
   private long[] inputCounts;
   private long[] outputCounts;
 
+  private MergingRecordBatchMemoryManager mergingRecordBatchMemoryManager;
+
   public enum Metric implements MetricDef {
     BYTES_RECEIVED,
     NUM_SENDERS,
@@ -122,6 +129,52 @@ public class MergingRecordBatch extends AbstractRecordBatch<MergingReceiverPOP> 
     @Override
     public int metricId() {
       return ordinal();
+    }
+  }
+
+  private class MergingRecordBatchMemoryManager extends RecordBatchMemoryManager {
+
+    MergingRecordBatchMemoryManager(int numInputs, int outputBatchSize) {
+      super(numInputs, outputBatchSize);
+    }
+
+    @Override
+    public void update(int inputIndex) {
+      logger.debug("BATCH_STATS, incoming {}: {}", inputIndex == 0 ? "left" : "right", getRecordBatchSizer(inputIndex));
+
+      setRecordBatchSizer(inputIndex, new RecordBatchSizer(batchLoaders[inputIndex].getContainer()));
+      updateIncomingStats(inputIndex);
+
+      int newOutgoingRowWidth = 0;
+      for (int idx=0; idx < batchLoaders.length; idx++) {
+        newOutgoingRowWidth += getRecordBatchSizer(idx) == null ? 0 : getRecordBatchSizer(idx).netRowWidth();
+      }
+      newOutgoingRowWidth = RecordBatchSizer.safeDivide(newOutgoingRowWidth, batchLoaders.length);
+
+      // If outgoing row width is 0, just return. This is possible for empty batches or
+      // when first set of batches come with OK_NEW_SCHEMA and no data.
+      if (newOutgoingRowWidth == 0) {
+        targetOutputRowCount = getOutputRowCount();
+      }
+
+      // Adjust for the current batch.
+      // calculate memory used so far based on previous outgoing row width and how many rows we already processed.
+      final int previousOutgoingWidth = getOutgoingRowWidth();
+      final long memoryUsed = outgoingPosition * previousOutgoingWidth;
+
+      final int configOutputBatchSize = getOutputBatchSize();
+      // This is the remaining memory.
+      final long remainingMemory = Math.max(configOutputBatchSize - memoryUsed, 0);
+
+      // These are number of rows we can fit in remaining memory based on new outgoing row width.
+      final int numOutputRowsRemaining = RecordBatchSizer.safeDivide(remainingMemory, newOutgoingRowWidth);
+
+      // update the value to be used for next batch(es)
+      setOutputRowCount(configOutputBatchSize, newOutgoingRowWidth);
+      // set the new row width
+      setOutgoingRowWidth(newOutgoingRowWidth);
+      targetOutputRowCount =  adjustOutputRowCount(outgoingPosition + numOutputRowsRemaining);
+
     }
   }
 
@@ -139,6 +192,12 @@ public class MergingRecordBatch extends AbstractRecordBatch<MergingReceiverPOP> 
 
     // Register this operator's buffer allocator so that incoming buffers are owned by this allocator
     context.getBuffers().getCollector(config.getOppositeMajorFragmentId()).setAllocator(oContext.getAllocator());
+
+    // get the output batch size from config.
+    int configuredBatchSize = (int) context.getOptions().getOption(ExecConstants.OUTPUT_BATCH_SIZE_VALIDATOR);
+    mergingRecordBatchMemoryManager  = new MergingRecordBatchMemoryManager(config.getNumSenders(), configuredBatchSize);
+
+    logger.debug("BATCH_STATS, configured output batch size: {}", configuredBatchSize);
   }
 
   @SuppressWarnings("resource")
@@ -358,6 +417,10 @@ public class MergingRecordBatch extends AbstractRecordBatch<MergingReceiverPOP> 
         return IterOutcome.STOP;
       }
 
+      for (int idx=0; idx < batchLoaders.length; idx++) {
+        mergingRecordBatchMemoryManager.update(idx);
+      }
+
       // allocate the priority queue with the generated comparator
       this.pqueue = new PriorityQueue<>(fragProviders.length, new Comparator<Node>() {
         @Override
@@ -418,6 +481,8 @@ public class MergingRecordBatch extends AbstractRecordBatch<MergingReceiverPOP> 
           while (nextBatch != null && nextBatch.getHeader().getDef().getRecordCount() == 0) {
             nextBatch = getNext(node.batchId);
           }
+
+          mergingRecordBatchMemoryManager.update(node.batchId);
 
           assert nextBatch != null || inputCounts[node.batchId] == outputCounts[node.batchId]
               : String.format("Stream %d input count: %d output count %d", node.batchId, inputCounts[node.batchId], outputCounts[node.batchId]);
@@ -691,7 +756,7 @@ public class MergingRecordBatch extends AbstractRecordBatch<MergingReceiverPOP> 
       @SuppressWarnings("resource")
       final ValueVector v = w.getValueVector();
       if (v instanceof FixedWidthVector) {
-        AllocationHelper.allocate(v, OUTGOING_BATCH_SIZE, 1);
+        AllocationHelper.allocate(v, mergingRecordBatchMemoryManager.getOutputRowCount(), 1);
       } else {
         v.allocateNewSafe();
       }
@@ -784,8 +849,8 @@ public class MergingRecordBatch extends AbstractRecordBatch<MergingReceiverPOP> 
    * @param node Reference to the next record to copy from the incoming batches
    */
   private boolean copyRecordToOutgoingBatch(final Node node) {
-    assert outgoingPosition < OUTGOING_BATCH_SIZE
-        : String.format("Outgoing position %d must be less than bath size %d", outgoingPosition, OUTGOING_BATCH_SIZE);
+    assert outgoingPosition < targetOutputRowCount
+        : String.format("Outgoing position %d must be less than bath size %d", outgoingPosition, targetOutputRowCount);
     assert ++outputCounts[node.batchId] <= inputCounts[node.batchId]
         : String.format("Stream %d input count: %d output count %d", node.batchId, inputCounts[node.batchId], outputCounts[node.batchId]);
     final int inIndex = (node.batchId << 16) + node.valueIndex;
@@ -794,8 +859,8 @@ public class MergingRecordBatch extends AbstractRecordBatch<MergingReceiverPOP> 
     } catch (SchemaChangeException e) {
       throw new UnsupportedOperationException(e);
     }
-    if (++outgoingPosition == OUTGOING_BATCH_SIZE) {
-      logger.debug("Outgoing vectors space is full (batch size {}).", OUTGOING_BATCH_SIZE);
+    if (++outgoingPosition == targetOutputRowCount) {
+      logger.debug("Outgoing vectors space is full (batch size {}).", targetOutputRowCount);
       return false;
     }
     return true;

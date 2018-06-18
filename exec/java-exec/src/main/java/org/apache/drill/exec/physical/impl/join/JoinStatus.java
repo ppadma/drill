@@ -109,6 +109,10 @@ public final class JoinStatus {
     this.targetOutputRowCount = outputRowCount;
   }
 
+  public final int getTargetOutputRowCount() {
+    return targetOutputRowCount;
+  }
+
   public final void incOutputPos() {
     ++outputPosition;
   }
