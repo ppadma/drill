@@ -114,6 +114,9 @@ public abstract class HashTableTemplate implements HashTable {
 
   // Given hashtable index, figure out the corresponding index in the batch.
   public int idxInBatch(int idx) {
+    return (idx & HashTable.BATCH_MASK);
+
+    /*
     int totalSize = 0;
     for (int i=0; i < batchHolders.size(); i++) {
       if (idx < (totalSize + batchHolders.get(i).batchSize)) {
@@ -122,10 +125,15 @@ public abstract class HashTableTemplate implements HashTable {
       totalSize += batchHolders.get(i).batchSize;
     }
     throw new IllegalArgumentException("idx must be less than total size");
+    */
   }
 
   // Given hashtable index, figure out the corresponding batch.
   public int idxOfBatch(int idx) {
+
+    return (idx >>> 16) & HashTable.BATCH_MASK;
+
+    /*
     int totalSize = 0;
     for (int i=0; i < batchHolders.size(); i++) {
       totalSize += batchHolders.get(i).batchSize;
@@ -134,6 +142,7 @@ public abstract class HashTableTemplate implements HashTable {
       }
     }
     throw new IllegalArgumentException("idx must be less than total size");
+    */
   }
 
   // This class encapsulates the links, keys and values for up to BATCH_SIZE

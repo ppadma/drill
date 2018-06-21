@@ -203,6 +203,10 @@ public abstract class HashAggTemplate implements HashAggregator {
 
   // Given hashtable index, figure out the corresponding index in the batch.
   public int idxInBatch(int parition, int idx) {
+
+    return (idx & HashTable.BATCH_MASK);
+
+    /*
     int totalSize = 0;
     for (int i=0; i < batchHolders[parition].size(); i++) {
       if (idx < (totalSize + batchHolders[parition].get(i).batchSize)) {
@@ -211,10 +215,14 @@ public abstract class HashAggTemplate implements HashAggregator {
       totalSize += batchHolders[parition].get(i).batchSize;
     }
     throw new IllegalArgumentException("idx must be less than total size");
+    */
   }
 
   // Given hashtable index, figure out the corresponding batch.
   public int idxOfBatch(int partition, int idx) {
+    return (idx >>> 16) & HashTable.BATCH_MASK;
+
+    /*
     int totalSize = 0;
     for (int i=0; i < batchHolders[partition].size(); i++) {
       totalSize += batchHolders[partition].get(i).batchSize;
@@ -223,6 +231,7 @@ public abstract class HashAggTemplate implements HashAggregator {
       }
     }
     throw new IllegalArgumentException("idx must be less than total size");
+    */
   }
 
   public class BatchHolder {
