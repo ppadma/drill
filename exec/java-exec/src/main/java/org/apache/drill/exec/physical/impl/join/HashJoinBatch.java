@@ -888,7 +888,10 @@ public class HashJoinBatch extends AbstractBinaryRecordBatch<HashJoinPOP> {
     // get the output batch size from config.
     int configuredBatchSize = (int) context.getOptions().getOption(ExecConstants.OUTPUT_BATCH_SIZE_VALIDATOR);
     batchMemoryManager = new JoinBatchMemoryManager(configuredBatchSize, left, right);
+
     logger.debug("BATCH_STATS, configured output batch size: {}", configuredBatchSize);
+
+    logger.debug("BATCH_STATS, allocated memory: {}", allocator.getLimit());
   }
 
   /**
