@@ -50,6 +50,8 @@ public abstract class NestedLoopJoinTemplate implements NestedLoopJoin {
   // Iteration status tracker
   private IterationStatusTracker tracker = new IterationStatusTracker();
 
+  private int targetOutputRecords;
+
   /**
    * Method initializes necessary state and invokes the doSetup() to set the
    * input and output value vector references.
@@ -73,6 +75,15 @@ public abstract class NestedLoopJoinTemplate implements NestedLoopJoin {
     doSetup(context, rightContainer, left, outgoing);
   }
 
+  @Override
+  public void setTargetOutputCount(int targetOutputRecords) {
+    this.targetOutputRecords = targetOutputRecords;
+  }
+
+ // public int getOutputCount() {
+  //  return outputRecords;
+ // }
+
   /**
    * Main entry point for producing the output records. Thin wrapper around populateOutgoingBatch(), this method
    * controls which left batch we are processing and fetches the next left input batch once we exhaust the current one.
@@ -84,7 +95,8 @@ public abstract class NestedLoopJoinTemplate implements NestedLoopJoin {
     int outputIndex = 0;
     while (leftRecordCount != 0) {
       outputIndex = populateOutgoingBatch(joinType, outputIndex);
-      if (outputIndex >= NestedLoopJoinBatch.MAX_BATCH_SIZE) {
+     // if (outputIndex >= NestedLoopJoinBatch.MAX_BATCH_SIZE) {
+      if (outputIndex >= targetOutputRecords) {
         break;
       }
       // reset state and get next left batch
@@ -128,7 +140,8 @@ public abstract class NestedLoopJoinTemplate implements NestedLoopJoin {
             outputIndex++;
             rightRecordMatched = true;
 
-            if (outputIndex >= NestedLoopJoinBatch.MAX_BATCH_SIZE) {
+           // if (outputIndex >= NestedLoopJoinBatch.MAX_BATCH_SIZE) {
+            if (outputIndex >= targetOutputRecords) {
               nextRightRecordToProcess++;
 
               // no more space left in the batch, stop processing
@@ -143,7 +156,8 @@ public abstract class NestedLoopJoinTemplate implements NestedLoopJoin {
         // project records from the left side only, records from right will be null
         emitLeft(nextLeftRecordToProcess, outputIndex);
         outputIndex++;
-        if (outputIndex >= NestedLoopJoinBatch.MAX_BATCH_SIZE) {
+       // if (outputIndex >= NestedLoopJoinBatch.MAX_BATCH_SIZE) {
+        if (outputIndex >= targetOutputRecords) {
           nextLeftRecordToProcess++;
 
           // no more space left in the batch, stop processing
