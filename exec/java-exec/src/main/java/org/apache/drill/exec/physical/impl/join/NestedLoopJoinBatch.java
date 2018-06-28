@@ -188,10 +188,10 @@ public class NestedLoopJoinBatch extends AbstractBinaryRecordBatch<NestedLoopJoi
     }
 
     // allocate space for the outgoing batch
-   // allocateVectors();
-    batchMemoryManager.allocateVectors(container);
+    allocateVectors();
+  //  batchMemoryManager.allocateVectors(container);
 
-    nljWorker.setTargetOutputCount(batchMemoryManager.getOutputRowCount());
+  //  nljWorker.setTargetOutputCount(batchMemoryManager.getOutputRowCount());
 
     // invoke the runtime generated method to emit records in the output batch
     outputRecords = nljWorker.outputRecords(popConfig.getJoinType());
@@ -240,7 +240,7 @@ public class NestedLoopJoinBatch extends AbstractBinaryRecordBatch<NestedLoopJoi
         SETUP_LEFT_MAPPING, NestedLoopJoin.TEMPLATE_DEFINITION, context.getOptions());
     nLJCodeGenerator.plainJavaCapable(true);
     // Uncomment out this line to debug the generated code.
-    // nLJCodeGenerator.saveCodeForDebugging(true);
+    nLJCodeGenerator.saveCodeForDebugging(true);
     final ClassGenerator<NestedLoopJoin> nLJClassGenerator = nLJCodeGenerator.getRoot();
 
     // generate doEval

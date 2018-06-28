@@ -2101,7 +2101,7 @@ public class TestOutputBatchSize extends PhysicalOpUnitTestBase {
         (LogicalExpression) new FieldReference("c2", ExpressionPosition.UNKNOWN)),
       ExpressionPosition.UNKNOWN);
 
-    NestedLoopJoinPOP nestedLoopJoinPOP = new NestedLoopJoinPOP(null, null, JoinRelType.INNER, functionCallExpr);
+    NestedLoopJoinPOP nestedLoopJoinPOP = new NestedLoopJoinPOP(null, null, JoinRelType.FULL, functionCallExpr);
 
     mockOpContext(nestedLoopJoinPOP, initReservation, maxAllocation);
 
